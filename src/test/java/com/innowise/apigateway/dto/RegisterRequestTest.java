@@ -1,0 +1,36 @@
+package com.innowise.apigateway.dto;
+
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import org.junit.jupiter.api.Test;
+
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class RegisterRequestTest {
+
+    private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
+
+    @Test
+    void shouldFailValidation_whenNameIsBlank() {
+        RegisterRequest request = new RegisterRequest("", "user@example.com", "password123");
+
+        Set<ConstraintViolation<RegisterRequest>> violations = VALIDATOR.validate(request);
+
+        assertThat(violations).isNotEmpty();
+        assertThat(violations)
+                .extracting(v -> v.getPropertyPath().toString())
+                .containsExactly("name");
+    }
+
+    @Test
+    void shouldPassValidation_whenAllFieldsAreValid() {
+        RegisterRequest request = new RegisterRequest("Alice", "alice@example.com", "securePass1");
+
+        Set<ConstraintViolation<RegisterRequest>> violations = VALIDATOR.validate(request);
+
+        assertThat(violations).isEmpty();
+    }
+}
