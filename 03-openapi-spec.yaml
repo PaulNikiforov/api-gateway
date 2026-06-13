@@ -1,0 +1,377 @@
+openapi: 3.1.0
+
+info:
+  title: API Gateway
+  description: |
+    Single external entry point for the Innowise microservice platform.
+
+    **Authentication:** all endpoints except `/register`, `/auth/login`, and `/auth/refresh`
+    require a valid JWT access token in the `Authorization: Bearer <token>` header.
+
+    **Internal endpoints** (`POST /auth/credentials`, `POST /auth/validate`) are not exposed
+    through the Gateway and are therefore not listed here. They are reachable only on the
+    internal Docker network.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8090
+    description: Local development
+  - url: http://api-gateway:8080
+    description: Docker Compose (internal)
+
+tags:
+  - name: Registration
+    description: User registration — orchestrated by Gateway across User Service and Auth Service
+  - name: Authentication
+    description: Login, logout, token refresh — proxied to Auth Service
+  - name: Users
+    description: User management — proxied to User Service
+
+paths:
+
+  # ─────────────────────────────────────────────────────────────
+  # REGISTRATION
+  # ─────────────────────────────────────────────────────────────
+  /register:
+    post:
+      tags: [Registration]
+      summary: Register a new user
+      description: |
+        Gateway orchestrates a two-step registration:
+        1. Creates a user record in User Service (`POST /users`).
+        2. Saves credentials in Auth Service (`POST /auth/credentials`).
+
+        If step 2 fails, Gateway compensates by deleting the User Service record
+        (`DELETE /users/{userId}`).
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: Validation error (missing fields, password too short)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected error or compensation failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─────────────────────────────────────────────────────────────
+  # AUTHENTICATION — proxied to Auth Service
+  # ─────────────────────────────────────────────────────────────
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login with email and password
+      description: Proxied to Auth Service `POST /auth/login`. Returns token pair and user identity.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Account deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      description: |
+        Proxied to Auth Service `POST /auth/refresh`. Rotates the refresh token —
+        the old token is invalidated and a new pair is returned.
+      operationId: refreshToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token pair refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Refresh token invalid or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Logout (terminate all sessions)
+      description: |
+        Proxied to Auth Service `POST /auth/logout`. Deletes **all** refresh tokens for
+        the authenticated user — terminates all active sessions across all devices.
+
+        Requires a valid access token.
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─────────────────────────────────────────────────────────────
+  # USERS — proxied to User Service
+  # ─────────────────────────────────────────────────────────────
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      description: |
+        Gateway validates the JWT, extracts `userId` from `/auth/validate`, then proxies
+        `GET /users/{userId}` to User Service with headers `X-User-Id` and `X-User-Role`.
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/{userId}:
+    get:
+      tags: [Users]
+      summary: Get user by ID
+      description: Proxied to User Service. Requires authentication.
+      operationId: getUserById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+# ─────────────────────────────────────────────────────────────
+# COMPONENTS
+# ─────────────────────────────────────────────────────────────
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token issued by Auth Service. Lifetime 15 minutes.
+
+  schemas:
+
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          example: Pavel
+        email:
+          type: string
+          format: email
+          example: pavel@example.com
+        password:
+          type: string
+          minLength: 8
+          example: secret123
+
+    RegisterResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+          example: 42
+        accessToken:
+          type: string
+          example: eyJhbGciOiJIUzI1NiJ9...
+        refreshToken:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: pavel@example.com
+        password:
+          type: string
+          example: secret123
+
+    LoginResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: eyJhbGciOiJIUzI1NiJ9...
+        refreshToken:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+        userId:
+          type: integer
+          format: int64
+          example: 42
+        role:
+          type: string
+          enum: [USER, ADMIN]
+          example: USER
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+
+    TokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: eyJhbGciOiJIUzI1NiJ9...
+        refreshToken:
+          type: string
+          example: 660e9500-f30c-52e5-b827-557766551111
+
+    UserResponse:
+      type: object
+      description: User profile as returned by User Service
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 42
+        name:
+          type: string
+          example: Pavel
+        surname:
+          type: string
+          example: Nikiforov
+        email:
+          type: string
+          format: email
+          example: pavel@example.com
+        birthDate:
+          type: string
+          format: date
+          example: '1995-06-15'
+        active:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-06-13T10:00:00Z'
+        status:
+          type: integer
+          example: 401
+        error:
+          type: string
+          example: Unauthorized
+        message:
+          type: string
+          example: Invalid or expired token
+        path:
+          type: string
+          example: /users/me

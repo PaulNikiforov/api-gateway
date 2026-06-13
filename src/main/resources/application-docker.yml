@@ -1,8 +1,5 @@
-services:
-  auth-service:
-    url: http://auth-service:8080
-  user-service:
-    url: http://user-service:8080
+server:
+  port: 8080
 
 spring:
   cloud:
@@ -10,12 +7,12 @@ spring:
       server:
         webflux:
           routes:
-        - id: auth-service
-          uri: ${services.auth-service.url}
-          predicates:
-            - Path=/auth/**
+            - id: auth-service
+              uri: ${AUTH_SERVICE_URL:http://auth-service:8080}
+              predicates:
+                - Path=/auth/**
 
-        - id: user-service
-          uri: ${services.user-service.url}
-          predicates:
-            - Path=/users/**
+            - id: user-service
+              uri: ${USER_SERVICE_URL:http://user-service:8080}
+              predicates:
+                - Path=/users/**
