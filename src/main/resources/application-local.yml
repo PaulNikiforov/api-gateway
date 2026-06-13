@@ -1,6 +1,10 @@
 server:
   port: 8090
 
+services:
+  auth-service-url: ${AUTH_SERVICE_URL:http://localhost:8081}
+  user-service-url: ${USER_SERVICE_URL:http://localhost:8080}
+
 spring:
   cloud:
     gateway:
