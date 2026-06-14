@@ -15,7 +15,7 @@ import java.util.Map;
  * Maps any 4xx/5xx response to {@link InvalidTokenException}.
  */
 @Component
-public class AuthTokenValidationClient implements TokenValidationClient {
+public class AuthTokenValidationClient {
 
     private final WebClient webClient;
 
@@ -23,7 +23,6 @@ public class AuthTokenValidationClient implements TokenValidationClient {
         this.webClient = webClient;
     }
 
-    @Override
     public Mono<ValidationResponse> validate(String accessToken) {
         return webClient.post()
                 .uri("/api/v1/auth/validate")

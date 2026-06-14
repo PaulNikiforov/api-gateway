@@ -1,8 +1,10 @@
 package com.innowise.apigateway.filter;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.innowise.apigateway.client.TokenValidationClient;
+import com.innowise.apigateway.client.AuthTokenValidationClient;
 import com.innowise.apigateway.client.dto.ValidationResponse;
+import com.innowise.apigateway.dto.ErrorResponse;
 import com.innowise.apigateway.exception.InvalidTokenException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +31,7 @@ import static org.mockito.Mockito.when;
 class AuthenticationGlobalFilterTest {
 
     @Mock
-    private TokenValidationClient validationClient;
+    private AuthTokenValidationClient validationClient;
 
     @Mock
     private GatewayFilterChain chain;
@@ -66,7 +68,17 @@ class AuthenticationGlobalFilterTest {
                 .verifyComplete();
 
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(exchange.getResponse().getBodyAsString().block()).contains("\"status\":401");
+        StepVerifier.create(exchange.getResponse().getBodyAsString())
+                .assertNext(body -> {
+                    try {
+                        ErrorResponse error = objectMapper.readValue(body, ErrorResponse.class);
+                        assertThat(error.status()).isEqualTo(401);
+                        assertThat(error.error()).isEqualTo("Unauthorized");
+                    } catch (JsonProcessingException e) {
+                        throw new AssertionError("Failed to parse error response body", e);
+                    }
+                })
+                .verifyComplete();
         verify(chain, never()).filter(any());
     }
 
@@ -105,7 +117,17 @@ class AuthenticationGlobalFilterTest {
                 .verifyComplete();
 
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(exchange.getResponse().getBodyAsString().block()).contains("\"status\":401");
+        StepVerifier.create(exchange.getResponse().getBodyAsString())
+                .assertNext(body -> {
+                    try {
+                        ErrorResponse error = objectMapper.readValue(body, ErrorResponse.class);
+                        assertThat(error.status()).isEqualTo(401);
+                        assertThat(error.error()).isEqualTo("Unauthorized");
+                    } catch (JsonProcessingException e) {
+                        throw new AssertionError("Failed to parse error response body", e);
+                    }
+                })
+                .verifyComplete();
         verify(chain, never()).filter(any());
     }
 

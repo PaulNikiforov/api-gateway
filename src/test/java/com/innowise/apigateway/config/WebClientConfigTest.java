@@ -24,7 +24,7 @@ class WebClientConfigTest {
     private ApplicationContext context;
 
     @Test
-    void exactlyTwoWebClientBeansExistWithExpectedNames() {
+    void getBeansOfType_whenContextLoaded_shouldExposeExactlyTwoWebClientBeans() {
         Map<String, WebClient> beans = context.getBeansOfType(WebClient.class);
         assertThat(beans)
                 .hasSize(2)

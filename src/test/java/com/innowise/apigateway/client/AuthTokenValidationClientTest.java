@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AuthTokenValidationClientTest {
 
     private MockWebServer mockWebServer;
-    private TokenValidationClient tokenValidationClient;
+    private AuthTokenValidationClient tokenValidationClient;
 
     @BeforeEach
     void setUp() throws IOException {

@@ -22,7 +22,14 @@ public class RegistrationController {
 
     private final RegistrationService registrationService;
 
-    /** Delegates to {@link RegistrationService#register}; returns HTTP 201 on success. */
+    /**
+     * Orchestrates user registration: step 1 creates a user profile in User Service
+     * ({@code POST /api/v1/users}), step 2 saves credentials in Auth Service
+     * ({@code POST /api/v1/auth/credentials}). On Auth Service failure a compensating
+     * {@code DELETE /api/v1/users/{userId}} is issued before the error propagates.
+     * Returns 201 with {@link RegisterResponse} on success.
+     * Possible responses: 400 (validation), 409 (duplicate credentials), 5xx (downstream failure).
+     */
     @PostMapping("/api/v1/register")
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {

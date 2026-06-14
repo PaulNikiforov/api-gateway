@@ -1,7 +1,6 @@
 package com.innowise.apigateway.service;
 
 import com.innowise.apigateway.dto.RegisterRequest;
-import com.innowise.apigateway.service.impl.RegistrationServiceImpl;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -19,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class RegistrationServiceImplTest {
+class RegistrationServiceTest {
 
     private MockWebServer userServiceServer;
     private MockWebServer authServiceServer;
@@ -39,7 +38,7 @@ class RegistrationServiceImplTest {
                 .baseUrl(authServiceServer.url("/").toString())
                 .build();
 
-        registrationService = new RegistrationServiceImpl(userServiceWebClient, authServiceWebClient);
+        registrationService = new RegistrationService(userServiceWebClient, authServiceWebClient);
     }
 
     @AfterEach
@@ -49,7 +48,7 @@ class RegistrationServiceImplTest {
     }
 
     @Test
-    void register_happyPath_returnsCombinedResponse() {
+    void register_whenBothServicesSucceed_shouldReturnCombinedResponse() {
         userServiceServer.enqueue(new MockResponse()
                 .setResponseCode(201)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -71,7 +70,7 @@ class RegistrationServiceImplTest {
     }
 
     @Test
-    void register_authServiceFails_compensatesWithDeleteAndPropagatesError() throws InterruptedException {
+    void register_whenAuthServiceFails_shouldCompensateWithDeleteAndPropagateError() throws InterruptedException {
         userServiceServer.enqueue(new MockResponse()
                 .setResponseCode(201)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -101,7 +100,7 @@ class RegistrationServiceImplTest {
     }
 
     @Test
-    void register_propagatesConflict_whenAuthReturns409() throws InterruptedException {
+    void register_whenAuthReturns409_shouldCompensateWithDeleteAndPropagateConflict() throws InterruptedException {
         userServiceServer.enqueue(new MockResponse()
                 .setResponseCode(201)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)

@@ -1,4 +1,3 @@
-// FILE: src/main/java/com/innowise/apigateway/dto/RegisterRequest.java
 package com.innowise.apigateway.dto;
 
 import jakarta.validation.constraints.Email;

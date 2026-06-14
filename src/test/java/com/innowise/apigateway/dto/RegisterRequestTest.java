@@ -14,7 +14,7 @@ class RegisterRequestTest {
     private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
 
     @Test
-    void shouldFailValidation_whenNameIsBlank() {
+    void validate_whenNameIsBlank_shouldFail() {
         RegisterRequest request = new RegisterRequest("", "user@example.com", "password123");
 
         Set<ConstraintViolation<RegisterRequest>> violations = VALIDATOR.validate(request);
@@ -26,7 +26,7 @@ class RegisterRequestTest {
     }
 
     @Test
-    void shouldPassValidation_whenAllFieldsAreValid() {
+    void validate_whenAllFieldsAreValid_shouldPass() {
         RegisterRequest request = new RegisterRequest("Alice", "alice@example.com", "securePass1");
 
         Set<ConstraintViolation<RegisterRequest>> violations = VALIDATOR.validate(request);
