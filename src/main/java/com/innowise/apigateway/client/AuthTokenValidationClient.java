@@ -11,7 +11,7 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 
 /**
- * HTTP client that delegates JWT validation to Auth Service via POST /auth/validate.
+ * HTTP client that delegates JWT validation to Auth Service via POST /api/v1/auth/validate.
  * Maps any 4xx/5xx response to {@link InvalidTokenException}.
  */
 @Component
@@ -26,10 +26,11 @@ public class AuthTokenValidationClient implements TokenValidationClient {
     @Override
     public Mono<ValidationResponse> validate(String accessToken) {
         return webClient.post()
-                .uri("/auth/validate")
+                .uri("/api/v1/auth/validate")
                 .bodyValue(Map.of("accessToken", accessToken))
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, resp -> Mono.error(new InvalidTokenException()))
-                .bodyToMono(ValidationResponse.class);
+                .bodyToMono(ValidationResponse.class)
+                .onErrorMap(e -> !(e instanceof InvalidTokenException), e -> new InvalidTokenException());
     }
 }

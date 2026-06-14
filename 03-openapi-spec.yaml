@@ -5,10 +5,10 @@ info:
   description: |
     Single external entry point for the Innowise microservice platform.
 
-    **Authentication:** all endpoints except `/register`, `/auth/login`, and `/auth/refresh`
+    **Authentication:** all endpoints except `/api/v1/register`, `/api/v1/auth/login`, and `/api/v1/auth/refresh`
     require a valid JWT access token in the `Authorization: Bearer <token>` header.
 
-    **Internal endpoints** (`POST /auth/credentials`, `POST /auth/validate`) are not exposed
+    **Internal endpoints** (`POST /api/v1/auth/credentials`, `POST /api/v1/api/v1/auth/validate`) are not exposed
     through the Gateway and are therefore not listed here. They are reachable only on the
     internal Docker network.
   version: 1.0.0
@@ -32,17 +32,17 @@ paths:
   # ─────────────────────────────────────────────────────────────
   # REGISTRATION
   # ─────────────────────────────────────────────────────────────
-  /register:
+  /api/v1/register:
     post:
       tags: [Registration]
       summary: Register a new user
       description: |
         Gateway orchestrates a two-step registration:
-        1. Creates a user record in User Service (`POST /users`).
-        2. Saves credentials in Auth Service (`POST /auth/credentials`).
+        1. Creates a user record in User Service (`POST /api/v1/users`).
+        2. Saves credentials in Auth Service (`POST /api/v1/auth/credentials`).
 
         If step 2 fails, Gateway compensates by deleting the User Service record
-        (`DELETE /users/{userId}`).
+        (`DELETE /api/v1/users/{userId}`).
       operationId: register
       security: []
       requestBody:
@@ -80,11 +80,11 @@ paths:
   # ─────────────────────────────────────────────────────────────
   # AUTHENTICATION — proxied to Auth Service
   # ─────────────────────────────────────────────────────────────
-  /auth/login:
+  /api/v1/auth/login:
     post:
       tags: [Authentication]
       summary: Login with email and password
-      description: Proxied to Auth Service `POST /auth/login`. Returns token pair and user identity.
+      description: Proxied to Auth Service `POST /api/v1/auth/login`. Returns token pair and user identity.
       operationId: login
       security: []
       requestBody:
@@ -119,12 +119,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /auth/refresh:
+  /api/v1/auth/refresh:
     post:
       tags: [Authentication]
       summary: Refresh access token
       description: |
-        Proxied to Auth Service `POST /auth/refresh`. Rotates the refresh token —
+        Proxied to Auth Service `POST /api/v1/auth/refresh`. Rotates the refresh token —
         the old token is invalidated and a new pair is returned.
       operationId: refreshToken
       security: []
@@ -148,12 +148,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /auth/logout:
+  /api/v1/auth/logout:
     post:
       tags: [Authentication]
       summary: Logout (terminate all sessions)
       description: |
-        Proxied to Auth Service `POST /auth/logout`. Deletes **all** refresh tokens for
+        Proxied to Auth Service `POST /api/v1/auth/logout`. Deletes **all** refresh tokens for
         the authenticated user — terminates all active sessions across all devices.
 
         Requires a valid access token.
@@ -173,13 +173,13 @@ paths:
   # ─────────────────────────────────────────────────────────────
   # USERS — proxied to User Service
   # ─────────────────────────────────────────────────────────────
-  /users/me:
+  /api/v1/users/me:
     get:
       tags: [Users]
       summary: Get current user profile
       description: |
-        Gateway validates the JWT, extracts `userId` from `/auth/validate`, then proxies
-        `GET /users/{userId}` to User Service with headers `X-User-Id` and `X-User-Role`.
+        Gateway validates the JWT, extracts `userId` from `/api/v1/auth/validate`, then proxies
+        `GET /api/v1/users/{userId}` to User Service with headers `X-User-Id` and `X-User-Role`.
       operationId: getCurrentUser
       security:
         - bearerAuth: []
@@ -203,7 +203,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /users/{userId}:
+  /api/v1/users/{userId}:
     get:
       tags: [Users]
       summary: Get user by ID
@@ -374,4 +374,4 @@ components:
           example: Invalid or expired token
         path:
           type: string
-          example: /users/me
+          example: /api/v1/users/me
