@@ -1,0 +1,82 @@
+package com.innowise.apigateway.exception;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.innowise.apigateway.dto.ErrorResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.boot.web.reactive.error.ErrorWebExceptionHandler;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
+import java.net.ConnectException;
+import java.time.Instant;
+
+/**
+ * Global reactive exception handler for the API Gateway.
+ *
+ * <p><b>Two-layer error handling:</b> this handler covers exceptions from the Gateway filter
+ * chain and routing path. Exceptions thrown by {@code @RestController} methods (e.g. the
+ * registration endpoint) are handled earlier by {@link GlobalExceptionHandler}
+ * ({@code @RestControllerAdvice}) and never reach this handler.
+ *
+ * <p>Runs at order {@code -2} to execute before the default Spring Boot error handling
+ * ({@code -1}).
+ *
+ * <p>Mapping rules:
+ * <ul>
+ *   <li>{@link ConnectException} or {@link WebClientRequestException} wrapping it
+ *       → {@code 503 SERVICE_UNAVAILABLE}</li>
+ *   <li>{@link ResponseStatusException} → forward its status code</li>
+ *   <li>All other exceptions → {@code 500 INTERNAL_SERVER_ERROR}</li>
+ * </ul>
+ */
+@Component
+@Order(-2)
+@RequiredArgsConstructor
+public class GatewayErrorWebExceptionHandler implements ErrorWebExceptionHandler {
+
+    private final ObjectMapper objectMapper;
+
+    @Override
+    public Mono<Void> handle(ServerWebExchange exchange, Throwable ex) {
+        HttpStatus status = resolveStatus(ex);
+        String path = exchange.getRequest().getPath().value();
+
+        ErrorResponse body = new ErrorResponse(
+                Instant.now(),
+                status.value(),
+                status.getReasonPhrase(),
+                ex.getMessage(),
+                path
+        );
+
+        var response = exchange.getResponse();
+        response.setStatusCode(status);
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+
+        return Mono.fromCallable(() -> objectMapper.writeValueAsBytes(body))
+                .flatMap(bytes -> {
+                    var buffer = response.bufferFactory().wrap(bytes);
+                    return response.writeWith(Mono.just(buffer));
+                });
+    }
+
+    private HttpStatus resolveStatus(Throwable ex) {
+        if (ex instanceof ResponseStatusException rse) {
+            HttpStatus resolved = HttpStatus.resolve(rse.getStatusCode().value());
+            return resolved != null ? resolved : HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+        if (ex instanceof ConnectException) {
+            return HttpStatus.SERVICE_UNAVAILABLE;
+        }
+        if (ex instanceof WebClientRequestException wre && wre.getCause() instanceof ConnectException) {
+            return HttpStatus.SERVICE_UNAVAILABLE;
+        }
+        return HttpStatus.INTERNAL_SERVER_ERROR;
+    }
+}
