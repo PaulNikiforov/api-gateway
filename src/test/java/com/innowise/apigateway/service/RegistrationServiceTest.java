@@ -5,6 +5,7 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -14,11 +15,25 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.LocalDate;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RegistrationServiceTest {
+
+    @BeforeAll
+    static void warmUpNetty() throws IOException {
+        try (MockWebServer warmup = new MockWebServer()) {
+            warmup.start();
+            warmup.enqueue(new MockResponse().setResponseCode(200));
+            StepVerifier.create(
+                    WebClient.builder().baseUrl(warmup.url("/").toString()).build()
+                            .get().retrieve().toBodilessEntity()
+            ).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(30));
+        }
+    }
 
     private MockWebServer userServiceServer;
     private MockWebServer authServiceServer;
@@ -59,7 +74,8 @@ class RegistrationServiceTest {
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody("{\"accessToken\":\"at\",\"refreshToken\":\"rt\"}"));
 
-        RegisterRequest request = new RegisterRequest("Alice", "alice@example.com", "password123");
+        RegisterRequest request = new RegisterRequest(
+                "Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123");
 
         StepVerifier.create(registrationService.register(request))
                 .expectNextMatches(response ->
@@ -82,7 +98,8 @@ class RegistrationServiceTest {
         userServiceServer.enqueue(new MockResponse()
                 .setResponseCode(204));
 
-        RegisterRequest request = new RegisterRequest("Alice", "alice@example.com", "password123");
+        RegisterRequest request = new RegisterRequest(
+                "Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123");
 
         StepVerifier.create(registrationService.register(request))
                 .expectError(WebClientResponseException.class)
@@ -112,7 +129,8 @@ class RegistrationServiceTest {
         userServiceServer.enqueue(new MockResponse()
                 .setResponseCode(204));
 
-        RegisterRequest request = new RegisterRequest("Alice", "alice@example.com", "password123");
+        RegisterRequest request = new RegisterRequest(
+                "Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123");
 
         StepVerifier.create(registrationService.register(request))
                 .expectError(WebClientResponseException.Conflict.class)

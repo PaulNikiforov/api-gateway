@@ -39,7 +39,7 @@ public class RegistrationService {
     public Mono<RegisterResponse> register(RegisterRequest request) {
         return userServiceWebClient.post()
                 .uri("/api/v1/users")
-                .bodyValue(new CreateUserRequest(request.name(), request.email()))
+                .bodyValue(new CreateUserRequest(request.name(), request.surname(), request.birthDate(), request.email()))
                 .retrieve()
                 .bodyToMono(UserCreatedResponse.class)
                 .timeout(Duration.ofSeconds(5))

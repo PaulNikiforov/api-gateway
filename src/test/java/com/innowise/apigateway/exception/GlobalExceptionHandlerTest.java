@@ -13,6 +13,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDate;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -30,7 +32,7 @@ class GlobalExceptionHandlerTest {
         webTestClient.post()
                 .uri("/api/v1/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new RegisterRequest("", "alice@example.com", "password123"))
+                .bodyValue(new RegisterRequest("", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123"))
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody(ErrorResponse.class)
@@ -53,7 +55,7 @@ class GlobalExceptionHandlerTest {
         webTestClient.post()
                 .uri("/api/v1/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new RegisterRequest("Alice", "alice@example.com", "password123"))
+                .bodyValue(new RegisterRequest("Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123"))
                 .exchange()
                 .expectStatus().isEqualTo(409);
     }
@@ -66,7 +68,7 @@ class GlobalExceptionHandlerTest {
         webTestClient.post()
                 .uri("/api/v1/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new RegisterRequest("Alice", "alice@example.com", "password123"))
+                .bodyValue(new RegisterRequest("Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123"))
                 .exchange()
                 .expectStatus().isEqualTo(500)
                 .expectBody(ErrorResponse.class)

@@ -5,12 +5,14 @@ import com.innowise.apigateway.exception.InvalidTokenException;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,6 +20,19 @@ class AuthTokenValidationClientTest {
 
     private MockWebServer mockWebServer;
     private AuthTokenValidationClient tokenValidationClient;
+
+    /** Forces Netty event-loop initialization before any timed production calls. */
+    @BeforeAll
+    static void warmUpNetty() throws IOException {
+        try (MockWebServer warmup = new MockWebServer()) {
+            warmup.start();
+            warmup.enqueue(new MockResponse().setResponseCode(200));
+            StepVerifier.create(
+                    WebClient.builder().baseUrl(warmup.url("/").toString()).build()
+                            .get().retrieve().toBodilessEntity()
+            ).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(30));
+        }
+    }
 
     @BeforeEach
     void setUp() throws IOException {
