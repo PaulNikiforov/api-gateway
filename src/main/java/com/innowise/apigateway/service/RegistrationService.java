@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
+
 /**
  * Synchronous reactive orchestration of user registration (Decision 3).
  * Step 1: {@code POST /api/v1/users} → User Service → {@code userId}.
@@ -40,12 +42,14 @@ public class RegistrationService {
                 .bodyValue(new CreateUserRequest(request.name(), request.email()))
                 .retrieve()
                 .bodyToMono(UserCreatedResponse.class)
+                .timeout(Duration.ofSeconds(5))
                 .flatMap(userCreated ->
                         authServiceWebClient.post()
                                 .uri("/api/v1/auth/credentials")
                                 .bodyValue(new SaveCredentialsRequest(userCreated.userId(), request.email(), request.password()))
                                 .retrieve()
                                 .bodyToMono(CredentialsResponse.class)
+                                .timeout(Duration.ofSeconds(5))
                                 .map(creds -> new RegisterResponse(userCreated.userId(), creds.accessToken(), creds.refreshToken()))
                                 .onErrorResume(authError ->
                                         deleteUser(userCreated.userId())
@@ -58,6 +62,7 @@ public class RegistrationService {
                 .uri("/api/v1/users/{id}", userId)
                 .retrieve()
                 .toBodilessEntity()
+                .timeout(Duration.ofSeconds(5))
                 .onErrorResume(delErr -> {
                     log.error("Compensation DELETE failed for userId={}", userId, delErr);
                     return Mono.empty();

@@ -22,13 +22,25 @@ import reactor.core.publisher.Mono;
 import java.time.Instant;
 import java.util.Set;
 
-/** Global JWT auth filter — delegates validation to Auth Service; injects X-User-Id and X-User-Role on success. */
+/**
+ * Global JWT auth filter — delegates validation to Auth Service; injects X-User-Id and X-User-Role on success.
+ *
+ * <p>Bypasses authentication for:
+ * <ul>
+ *   <li>POST requests to {@link #WHITELIST} paths (register, login, refresh) — no JWT required</li>
+ *   <li>Requests whose path starts with any {@link #PUBLIC_PREFIXES} entry (Swagger UI, API docs, webjars)</li>
+ * </ul>
+ *
+ * <p>All other requests must carry {@code Authorization: Bearer <token>}. On validation failure
+ * returns {@code 401 Unauthorized} with a JSON {@link ErrorResponse} body.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class AuthenticationGlobalFilter implements GlobalFilter, Ordered {
 
     private static final Set<String> WHITELIST = Set.of("/api/v1/register", "/api/v1/auth/login", "/api/v1/auth/refresh");
+    private static final Set<String> PUBLIC_PREFIXES = Set.of("/swagger-ui", "/v3/api-docs", "/webjars");
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String HEADER_USER_ID = "X-User-Id";
     private static final String HEADER_USER_ROLE = "X-User-Role";
@@ -43,6 +55,9 @@ public class AuthenticationGlobalFilter implements GlobalFilter, Ordered {
         log.debug("Processing request: method={} path={}", method, path);
 
         if (WHITELIST.contains(path) && HttpMethod.POST.equals(method)) {
+            return chain.filter(exchange);
+        }
+        if (PUBLIC_PREFIXES.stream().anyMatch(path::startsWith)) {
             return chain.filter(exchange);
         }
 

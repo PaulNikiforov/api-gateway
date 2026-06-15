@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -30,6 +31,7 @@ public class AuthTokenValidationClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, resp -> Mono.error(new InvalidTokenException()))
                 .bodyToMono(ValidationResponse.class)
+                .timeout(Duration.ofSeconds(5))
                 .onErrorMap(e -> !(e instanceof InvalidTokenException), e -> new InvalidTokenException());
     }
 }
