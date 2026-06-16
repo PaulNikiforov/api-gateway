@@ -53,8 +53,8 @@ jobs:
       # Clone provider repos (shallow) and install their stub JARs into the local Maven cache.
       - name: Install provider stub JARs
         run: |
-          git clone --depth 1 https://github.com/PaulNikiforov/authservice.git _stubs/authservice
-          git clone --depth 1 https://github.com/PaulNikiforov/userservice.git _stubs/userservice
+          git clone --depth 1 --branch tasks/auth1 https://github.com/PaulNikiforov/authservice.git _stubs/authservice
+          git clone --depth 1 --branch task/usr0 https://github.com/PaulNikiforov/userservice.git _stubs/userservice
           mvn -f _stubs/authservice/pom.xml install -DskipTests -B -q
           mvn -f _stubs/userservice/pom.xml install -DskipTests -B -q
 
