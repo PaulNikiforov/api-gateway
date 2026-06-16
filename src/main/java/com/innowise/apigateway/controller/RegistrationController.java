@@ -34,8 +34,9 @@ public class RegistrationController {
     /**
      * Orchestrates user registration: step 1 creates a user profile in User Service
      * ({@code POST /api/v1/users}), step 2 saves credentials in Auth Service
-     * ({@code POST /api/v1/auth/credentials}). On Auth Service failure a compensating
-     * {@code DELETE /api/v1/users/{userId}} is issued before the error propagates.
+     * ({@code POST /api/v1/auth/credentials}). On Auth Service 5xx/network failure
+     * a two-step compensating rollback is fired in the background (PATCH deactivate, then DELETE)
+     * and the error is returned to the caller immediately.
      * Returns 201 with {@link RegisterResponse} on success.
      * Possible responses: 400 (validation), 409 (duplicate credentials), 5xx (downstream failure).
      */

@@ -66,13 +66,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: Email already registered
+          description: Email already registered (propagated from Auth Service; no compensation triggered)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upstream service returned 5xx — details sanitized, not forwarded to caller
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Upstream service unreachable (connection refused or timeout)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
-          description: Unexpected error or compensation failure
+          description: Unexpected internal error
           content:
             application/json:
               schema:
@@ -255,11 +267,18 @@ components:
 
     RegisterRequest:
       type: object
-      required: [name, email, password]
+      required: [name, surname, birthDate, email, password]
       properties:
         name:
           type: string
           example: Pavel
+        surname:
+          type: string
+          example: Nikiforov
+        birthDate:
+          type: string
+          format: date
+          example: '1995-06-15'
         email:
           type: string
           format: email

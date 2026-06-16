@@ -18,7 +18,7 @@ public class WebClientConfig {
 
     @Bean
     public WebClient authServiceWebClient(WebClient.Builder builder) {
-        return builder.clone()
+        return builder
                 .baseUrl(services.authServiceUrl())
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
@@ -26,7 +26,7 @@ public class WebClientConfig {
 
     @Bean
     public WebClient userServiceWebClient(WebClient.Builder builder) {
-        return builder.clone()
+        return builder
                 .baseUrl(services.userServiceUrl())
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();

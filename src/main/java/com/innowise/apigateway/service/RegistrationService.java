@@ -61,7 +61,12 @@ public class RegistrationService {
                                     if (authError instanceof WebClientResponseException ex && ex.getStatusCode().is4xxClientError()) {
                                         return Mono.error(authError);
                                     }
-                                    return compensate(userCreated.userId()).then(Mono.error(authError));
+                                    // Fire-and-forget: return error immediately, compensation runs in background (F5)
+                                    compensate(userCreated.userId()).subscribe(
+                                            null,
+                                            err -> log.error("Background compensation failed for userId={}", userCreated.userId(), err)
+                                    );
+                                    return Mono.error(authError);
                                 })
                 );
     }
@@ -84,6 +89,12 @@ public class RegistrationService {
                         .then())
                 .onErrorResume(err -> {
                     log.error("Compensation: delete failed for userId={}", userId, err);
+                    return Mono.empty();
+                })
+                // Aggregate ceiling: no single-step timeout should ever exceed 2×PER_CALL_TIMEOUT total (F8)
+                .timeout(GatewayConstants.PER_CALL_TIMEOUT.multipliedBy(2))
+                .onErrorResume(err -> {
+                    log.error("Compensation: aggregate timeout exceeded for userId={}", userId, err);
                     return Mono.empty();
                 });
     }

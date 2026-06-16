@@ -1,0 +1,20 @@
+# Standalone compose — runs api-gateway only.
+# Downstream services must be reachable via AUTH_SERVICE_URL / USER_SERVICE_URL / ORDER_SERVICE_URL.
+# For the full platform use ../compose.yaml instead.
+services:
+  api-gateway:
+    build: .
+    ports:
+      - "8090:8080"
+    environment:
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://authservice:8081}
+      USER_SERVICE_URL: ${USER_SERVICE_URL:-http://userservice:8080}
+      ORDER_SERVICE_URL: ${ORDER_SERVICE_URL:-http://orderservice:8082}
+    restart: unless-stopped
+    networks:
+      - platform
+
+networks:
+  platform:
+    name: innowise-platform
+    external: true   # join the shared network; create with: docker network create innowise-platform

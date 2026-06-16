@@ -1,10 +1,7 @@
 package com.innowise.apigateway.filter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.innowise.apigateway.client.AuthTokenValidationClient;
 import com.innowise.apigateway.client.dto.ValidationResponse;
-import com.innowise.apigateway.dto.ErrorResponse;
 import com.innowise.apigateway.exception.InvalidTokenException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +13,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -38,13 +36,11 @@ class AuthenticationGlobalFilterTest {
     @Mock
     private GatewayFilterChain chain;
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-
     private AuthenticationGlobalFilter filter;
 
     @BeforeEach
     void setUp() {
-        filter = new AuthenticationGlobalFilter(validationClient, objectMapper);
+        filter = new AuthenticationGlobalFilter(validationClient);
     }
 
     @Test
@@ -62,25 +58,32 @@ class AuthenticationGlobalFilterTest {
     }
 
     @Test
-    void filter_whenProtectedEndpointWithoutAuthHeader_shouldReturn401AndNotCallChain() {
+    void filter_whenWhitelistedEndpointWithTrailingSlash_shouldSkipValidationAndCallChain() {
+        when(chain.filter(any())).thenReturn(Mono.empty());
+
         MockServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.get("/api/v1/users").build());
+                MockServerHttpRequest.post("/api/v1/auth/login/").build());
 
         StepVerifier.create(filter.filter(exchange, chain))
                 .verifyComplete();
 
-        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        StepVerifier.create(exchange.getResponse().getBodyAsString())
-                .assertNext(body -> {
-                    try {
-                        ErrorResponse error = objectMapper.readValue(body, ErrorResponse.class);
-                        assertThat(error.status()).isEqualTo(401);
-                        assertThat(error.error()).isEqualTo("Unauthorized");
-                    } catch (JsonProcessingException e) {
-                        throw new AssertionError("Failed to parse error response body", e);
-                    }
+        verify(validationClient, never()).validate(any());
+        verify(chain).filter(any());
+    }
+
+    @Test
+    void filter_whenProtectedEndpointWithoutAuthHeader_shouldSignal401AndNotCallChain() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users").build());
+
+        StepVerifier.create(filter.filter(exchange, chain))
+                .expectErrorSatisfies(e -> {
+                    assertThat(e).isInstanceOf(ResponseStatusException.class);
+                    assertThat(((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+                    assertThat(((ResponseStatusException) e).getReason()).isEqualTo("Missing or invalid token");
                 })
-                .verifyComplete();
+                .verify();
+
         verify(chain, never()).filter(any());
     }
 
@@ -106,7 +109,7 @@ class AuthenticationGlobalFilterTest {
     }
 
     @Test
-    void filter_whenInvalidToken_shouldReturn401AndNotCallChain() {
+    void filter_whenInvalidToken_shouldSignal401AndNotCallChain() {
         when(validationClient.validate(anyString()))
                 .thenReturn(Mono.error(new InvalidTokenException()));
 
@@ -116,20 +119,12 @@ class AuthenticationGlobalFilterTest {
                         .build());
 
         StepVerifier.create(filter.filter(exchange, chain))
-                .verifyComplete();
-
-        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        StepVerifier.create(exchange.getResponse().getBodyAsString())
-                .assertNext(body -> {
-                    try {
-                        ErrorResponse error = objectMapper.readValue(body, ErrorResponse.class);
-                        assertThat(error.status()).isEqualTo(401);
-                        assertThat(error.error()).isEqualTo("Unauthorized");
-                    } catch (JsonProcessingException e) {
-                        throw new AssertionError("Failed to parse error response body", e);
-                    }
+                .expectErrorSatisfies(e -> {
+                    assertThat(e).isInstanceOf(ResponseStatusException.class);
+                    assertThat(((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
                 })
-                .verifyComplete();
+                .verify();
+
         verify(chain, never()).filter(any());
     }
 
@@ -185,7 +180,7 @@ class AuthenticationGlobalFilterTest {
     }
 
     @Test
-    void filter_whenAuthServiceReturnsNullUserId_shouldReturn401() {
+    void filter_whenAuthServiceReturnsNullUserId_shouldSignal401() {
         when(validationClient.validate(anyString()))
                 .thenReturn(Mono.just(new ValidationResponse(null, null)));
 
@@ -195,9 +190,12 @@ class AuthenticationGlobalFilterTest {
                         .build());
 
         StepVerifier.create(filter.filter(exchange, chain))
-                .verifyComplete();
+                .expectErrorSatisfies(e -> {
+                    assertThat(e).isInstanceOf(ResponseStatusException.class);
+                    assertThat(((ResponseStatusException) e).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+                })
+                .verify();
 
-        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         verify(chain, never()).filter(any());
     }
 

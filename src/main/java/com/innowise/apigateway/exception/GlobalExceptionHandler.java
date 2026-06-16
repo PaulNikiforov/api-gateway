@@ -78,7 +78,9 @@ public class GlobalExceptionHandler {
         HttpStatusCode gatewayStatus = rawStatus.is5xxServerError() ? HttpStatus.BAD_GATEWAY : rawStatus;
         HttpStatus resolved = HttpStatus.resolve(gatewayStatus.value());
         String error = resolved != null ? resolved.getReasonPhrase() : ex.getStatusText();
-        String message = rawStatus.is5xxServerError() ? "Upstream service error" : ex.getStatusText();
+        // Use standard HTTP reason phrase instead of raw downstream status text to avoid leaking service internals (F4)
+        String message = rawStatus.is5xxServerError() ? "Upstream service error"
+                : (resolved != null ? resolved.getReasonPhrase() : "Client error");
         String path = exchange.getRequest().getPath().value();
         ErrorResponse body = new ErrorResponse(
                 Instant.now(),

@@ -3,6 +3,7 @@ package com.innowise.apigateway.exception;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.innowise.apigateway.dto.ErrorResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.reactive.error.ErrorWebExceptionHandler;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -32,10 +33,11 @@ import java.util.concurrent.TimeoutException;
  * <ul>
  *   <li>{@link ConnectException} or {@link WebClientRequestException} wrapping it
  *       → {@code 503 SERVICE_UNAVAILABLE}</li>
- *   <li>{@link ResponseStatusException} → forward its status code</li>
+ *   <li>{@link ResponseStatusException} → forward its status code (includes 401 from the auth filter)</li>
  *   <li>All other exceptions → {@code 500 INTERNAL_SERVER_ERROR}</li>
  * </ul>
  */
+@Slf4j
 @Component
 @Order(-2)
 @RequiredArgsConstructor
@@ -61,6 +63,10 @@ public class GatewayErrorWebExceptionHandler implements ErrorWebExceptionHandler
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
 
         return Mono.fromCallable(() -> objectMapper.writeValueAsBytes(body))
+                .onErrorResume(e -> {
+                    log.error("Failed to serialize error response for path {}", path, e);
+                    return Mono.empty();
+                })
                 .flatMap(bytes -> {
                     var buffer = response.bufferFactory().wrap(bytes);
                     return response.writeWith(Mono.just(buffer));
