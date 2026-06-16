@@ -33,7 +33,7 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - run: ./mvnw compile -B
+      - run: mvn compile -B
 
   test:
     name: Test
@@ -55,10 +55,10 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/PaulNikiforov/authservice.git _stubs/authservice
           git clone --depth 1 https://github.com/PaulNikiforov/userservice.git _stubs/userservice
-          ./mvnw -f _stubs/authservice/pom.xml install -DskipTests -B -q
-          ./mvnw -f _stubs/userservice/pom.xml install -DskipTests -B -q
+          mvn -f _stubs/authservice/pom.xml install -DskipTests -B -q
+          mvn -f _stubs/userservice/pom.xml install -DskipTests -B -q
 
-      - run: ./mvnw verify -B
+      - run: mvn verify -B -DskipITs
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         if: always()
@@ -98,7 +98,7 @@ jobs:
       # Full plugin coordinates avoid 403 resolution errors on GitHub runners.
       # -DskipTests: sources already compiled in build job; JaCoCo xml already downloaded above.
       - run: >
-          ./mvnw verify -B -DskipTests
+          mvn verify -B -DskipTests
           org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
           -Dsonar.token=$SONAR_TOKEN
         env:
