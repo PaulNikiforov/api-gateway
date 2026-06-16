@@ -1,70 +1,25 @@
-package com.innowise.apigateway.contract;
+package com.innowise.apigateway.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.innowise.apigateway.AbstractDownstreamClientTest;
 import com.innowise.apigateway.dto.RegisterRequest;
-import com.innowise.apigateway.service.RegistrationService;
 import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.test.StepVerifier;
 
-import java.io.IOException;
-import java.time.Duration;
 import java.time.LocalDate;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Contract test: verifies the exact request body Gateway sends to User Service.
- * Ensures {name, surname, birthDate, email} are forwarded and password is never exposed.
+ * Verifies the exact requests Gateway sends to User Service.
+ * Ensures {name, surname, birthDate, email} are forwarded, password is never exposed,
+ * and compensation (PATCH deactivate → DELETE) is triggered on auth failure.
  */
-class GatewayToUserServiceContractTest {
-
-    private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
-
-    @BeforeAll
-    static void warmUpNetty() throws IOException {
-        try (MockWebServer warmup = new MockWebServer()) {
-            warmup.start();
-            warmup.enqueue(new MockResponse().setResponseCode(200));
-            StepVerifier.create(
-                    WebClient.builder().baseUrl(warmup.url("/").toString()).build()
-                            .get().retrieve().toBodilessEntity()
-            ).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(30));
-        }
-    }
-
-    private MockWebServer userServiceServer;
-    private MockWebServer authServiceServer;
-    private RegistrationService registrationService;
-
-    @BeforeEach
-    void setUp() throws IOException {
-        userServiceServer = new MockWebServer();
-        authServiceServer = new MockWebServer();
-        userServiceServer.start();
-        authServiceServer.start();
-
-        WebClient userClient = WebClient.builder().baseUrl(userServiceServer.url("/").toString()).build();
-        WebClient authClient = WebClient.builder().baseUrl(authServiceServer.url("/").toString()).build();
-        registrationService = new RegistrationService(userClient, authClient);
-    }
-
-    @AfterEach
-    void tearDown() throws IOException {
-        userServiceServer.shutdown();
-        authServiceServer.shutdown();
-    }
+class GatewayToUserServiceClientTest extends AbstractDownstreamClientTest {
 
     @Test
     void register_sendsNameSurnameBirthDateEmailToUserService() throws Exception {
@@ -84,8 +39,7 @@ class GatewayToUserServiceContractTest {
                 .expectNextCount(1)
                 .verifyComplete();
 
-        RecordedRequest recorded = userServiceServer.takeRequest(1, TimeUnit.SECONDS);
-        assertThat(recorded).isNotNull();
+        RecordedRequest recorded = takeNext(userServiceServer);
         assertThat(recorded.getMethod()).isEqualTo("POST");
         assertThat(recorded.getPath()).isEqualTo("/api/v1/users");
 
@@ -97,11 +51,40 @@ class GatewayToUserServiceContractTest {
     }
 
     @Test
+    void compensation_onAuthFailure_sendsDeactivateThenDeleteToUserService() throws InterruptedException {
+        userServiceServer.enqueue(new MockResponse()
+                .setResponseCode(201)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":99}"));
+        authServiceServer.enqueue(new MockResponse().setResponseCode(500));
+        userServiceServer.enqueue(new MockResponse().setResponseCode(200));
+        userServiceServer.enqueue(new MockResponse().setResponseCode(204));
+
+        RegisterRequest request = new RegisterRequest(
+                "Carol", "White", LocalDate.of(1992, 3, 10), "carol@example.com", "pass");
+
+        StepVerifier.create(registrationService.register(request))
+                .expectError()
+                .verify();
+
+        takeNext(userServiceServer); // POST /api/v1/users
+
+        RecordedRequest deactivate = takeNext(userServiceServer);
+        assertThat(deactivate.getMethod()).isEqualTo("PATCH");
+        assertThat(deactivate.getPath()).isEqualTo("/api/v1/users/99/deactivate");
+
+        RecordedRequest delete = takeNext(userServiceServer);
+        assertThat(delete.getMethod()).isEqualTo("DELETE");
+        assertThat(delete.getPath()).isEqualTo("/api/v1/users/99");
+    }
+
+    @Test
     void register_doesNotForwardPasswordToUserService() throws Exception {
         userServiceServer.enqueue(new MockResponse()
                 .setResponseCode(201)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody("{\"id\":1}"));
+        // auth stub needed to let the registration flow complete; only the user-service request body is asserted
         authServiceServer.enqueue(new MockResponse()
                 .setResponseCode(201)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -114,7 +97,7 @@ class GatewayToUserServiceContractTest {
                 .expectNextCount(1)
                 .verifyComplete();
 
-        RecordedRequest recorded = userServiceServer.takeRequest(1, TimeUnit.SECONDS);
+        RecordedRequest recorded = takeNext(userServiceServer);
         JsonNode body = MAPPER.readTree(recorded.getBody().readByteArray());
         assertThat(body.has("password")).isFalse();
         assertThat(body.toString()).doesNotContain("supersecret99");

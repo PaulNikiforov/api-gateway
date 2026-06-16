@@ -93,6 +93,14 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- SCC Stub Runner (consumer-side contract tests). Brings the shaded WireMock 2.x
+             standalone jar, required on Spring Boot 3 (it shades javax.servlet + Jetty 9). -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-contract-stub-runner</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Testcontainers (E2E tests) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -161,6 +169,29 @@
                             <goal>integration-test</goal>
                             <goal>verify</goal>
                         </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>ban-spring-web</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>org.springframework.boot:spring-boot-starter-web</exclude>
+                                    </excludes>
+                                    <message>spring-boot-starter-web must not be on the classpath — it conflicts with Spring Cloud Gateway (Netty/WebFlux). Use spring-boot-starter-webflux instead.</message>
+                                </bannedDependencies>
+                            </rules>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

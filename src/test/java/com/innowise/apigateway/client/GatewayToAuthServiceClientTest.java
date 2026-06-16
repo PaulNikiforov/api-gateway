@@ -1,72 +1,31 @@
-package com.innowise.apigateway.contract;
+package com.innowise.apigateway.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.innowise.apigateway.client.AuthTokenValidationClient;
+import com.innowise.apigateway.AbstractDownstreamClientTest;
 import com.innowise.apigateway.dto.RegisterRequest;
-import com.innowise.apigateway.service.RegistrationService;
 import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.test.StepVerifier;
 
-import java.io.IOException;
-import java.time.Duration;
 import java.time.LocalDate;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Contract test: verifies the exact request bodies Gateway sends to Auth Service.
+ * Verifies the exact request bodies Gateway sends to Auth Service.
  * Covers POST /api/v1/auth/credentials (registration) and POST /api/v1/auth/validate (token check).
  */
-class GatewayToAuthServiceContractTest {
+class GatewayToAuthServiceClientTest extends AbstractDownstreamClientTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
-
-    @BeforeAll
-    static void warmUpNetty() throws IOException {
-        try (MockWebServer warmup = new MockWebServer()) {
-            warmup.start();
-            warmup.enqueue(new MockResponse().setResponseCode(200));
-            StepVerifier.create(
-                    WebClient.builder().baseUrl(warmup.url("/").toString()).build()
-                            .get().retrieve().toBodilessEntity()
-            ).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(30));
-        }
-    }
-
-    private MockWebServer userServiceServer;
-    private MockWebServer authServiceServer;
-    private RegistrationService registrationService;
     private AuthTokenValidationClient validationClient;
 
-    @BeforeEach
-    void setUp() throws IOException {
-        userServiceServer = new MockWebServer();
-        authServiceServer = new MockWebServer();
-        userServiceServer.start();
-        authServiceServer.start();
-
-        WebClient userClient = WebClient.builder().baseUrl(userServiceServer.url("/").toString()).build();
-        WebClient authClient = WebClient.builder().baseUrl(authServiceServer.url("/").toString()).build();
-        registrationService = new RegistrationService(userClient, authClient);
+    @Override
+    protected void onSetUp(WebClient userClient, WebClient authClient) {
         validationClient = new AuthTokenValidationClient(authClient);
-    }
-
-    @AfterEach
-    void tearDown() throws IOException {
-        userServiceServer.shutdown();
-        authServiceServer.shutdown();
     }
 
     @Test
@@ -87,10 +46,9 @@ class GatewayToAuthServiceContractTest {
                 .expectNextCount(1)
                 .verifyComplete();
 
-        userServiceServer.takeRequest(1, TimeUnit.SECONDS);
+        takeNext(userServiceServer); // POST /api/v1/users (discard — asserted in GatewayToUserServiceClientTest)
 
-        RecordedRequest authRequest = authServiceServer.takeRequest(1, TimeUnit.SECONDS);
-        assertThat(authRequest).isNotNull();
+        RecordedRequest authRequest = takeNext(authServiceServer);
         assertThat(authRequest.getMethod()).isEqualTo("POST");
         assertThat(authRequest.getPath()).isEqualTo("/api/v1/auth/credentials");
 
@@ -111,8 +69,7 @@ class GatewayToAuthServiceContractTest {
                 .expectNextMatches(vr -> vr.userId() == 7L && "USER".equals(vr.role()))
                 .verifyComplete();
 
-        RecordedRequest recorded = authServiceServer.takeRequest(1, TimeUnit.SECONDS);
-        assertThat(recorded).isNotNull();
+        RecordedRequest recorded = takeNext(authServiceServer);
         assertThat(recorded.getMethod()).isEqualTo("POST");
         assertThat(recorded.getPath()).isEqualTo("/api/v1/auth/validate");
 

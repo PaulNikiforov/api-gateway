@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
@@ -76,5 +77,20 @@ class AuthTokenValidationClientTest {
         StepVerifier.create(tokenValidationClient.validate("invalid-token"))
                 .expectError(InvalidTokenException.class)
                 .verify();
+    }
+
+    @Test
+    void validate_whenAuthServiceUnreachable_propagatesWebClientRequestException() throws IOException {
+        MockWebServer dead = new MockWebServer();
+        dead.start();
+        String url = dead.url("/").toString();
+        dead.shutdown();
+
+        AuthTokenValidationClient clientToDeadServer = new AuthTokenValidationClient(
+                WebClient.builder().baseUrl(url).build());
+
+        StepVerifier.create(clientToDeadServer.validate("any-token"))
+                .expectError(WebClientRequestException.class)
+                .verify(Duration.ofSeconds(5));
     }
 }

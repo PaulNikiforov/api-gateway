@@ -1,5 +1,6 @@
 package com.innowise.apigateway.client;
 
+import com.innowise.apigateway.GatewayConstants;
 import com.innowise.apigateway.client.dto.ValidationResponse;
 import com.innowise.apigateway.exception.InvalidTokenException;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -8,12 +9,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import java.time.Duration;
 import java.util.Map;
 
 /**
  * HTTP client that delegates JWT validation to Auth Service via POST /api/v1/auth/validate.
- * Maps any 4xx/5xx response to {@link InvalidTokenException}.
+ * Maps 4xx/5xx HTTP responses to {@link InvalidTokenException}. Network/timeout errors propagate as-is.
  */
 @Component
 public class AuthTokenValidationClient {
@@ -31,7 +31,6 @@ public class AuthTokenValidationClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, resp -> Mono.error(new InvalidTokenException()))
                 .bodyToMono(ValidationResponse.class)
-                .timeout(Duration.ofSeconds(5))
-                .onErrorMap(e -> !(e instanceof InvalidTokenException), e -> new InvalidTokenException());
+                .timeout(GatewayConstants.PER_CALL_TIMEOUT);
     }
 }

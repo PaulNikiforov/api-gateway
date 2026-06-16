@@ -20,6 +20,8 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.net.ConnectException;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -128,6 +130,74 @@ class AuthenticationGlobalFilterTest {
                     }
                 })
                 .verifyComplete();
+        verify(chain, never()).filter(any());
+    }
+
+    @Test
+    void filter_whenWhitelistedEndpointWithInjectedHeaders_shouldStripBeforeForwarding() {
+        when(chain.filter(any())).thenReturn(Mono.empty());
+
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/v1/register")
+                        .header("X-User-Id", "1")
+                        .header("X-User-Role", "ADMIN")
+                        .build());
+
+        ArgumentCaptor<ServerWebExchange> captor = ArgumentCaptor.forClass(ServerWebExchange.class);
+
+        StepVerifier.create(filter.filter(exchange, chain))
+                .verifyComplete();
+
+        verify(chain).filter(captor.capture());
+        assertThat(captor.getValue().getRequest().getHeaders().getFirst("X-User-Id")).isNull();
+        assertThat(captor.getValue().getRequest().getHeaders().getFirst("X-User-Role")).isNull();
+    }
+
+    @Test
+    void filter_whenOptionsMethod_shouldBypassAuthAndCallChain() {
+        when(chain.filter(any())).thenReturn(Mono.empty());
+
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.options("/api/v1/auth/login").build());
+
+        StepVerifier.create(filter.filter(exchange, chain))
+                .verifyComplete();
+
+        verify(validationClient, never()).validate(any());
+        verify(chain).filter(any());
+    }
+
+    @Test
+    void filter_whenAuthServiceUnreachable_shouldPropagateErrorNotReturn401() {
+        when(validationClient.validate(anyString()))
+                .thenReturn(Mono.error(new ConnectException("Connection refused")));
+
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users")
+                        .header("Authorization", "Bearer some-token")
+                        .build());
+
+        StepVerifier.create(filter.filter(exchange, chain))
+                .expectError(ConnectException.class)
+                .verify();
+
+        verify(chain, never()).filter(any());
+    }
+
+    @Test
+    void filter_whenAuthServiceReturnsNullUserId_shouldReturn401() {
+        when(validationClient.validate(anyString()))
+                .thenReturn(Mono.just(new ValidationResponse(null, null)));
+
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users")
+                        .header("Authorization", "Bearer some-token")
+                        .build());
+
+        StepVerifier.create(filter.filter(exchange, chain))
+                .verifyComplete();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         verify(chain, never()).filter(any());
     }
 

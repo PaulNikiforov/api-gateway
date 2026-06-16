@@ -15,6 +15,7 @@ import reactor.core.publisher.Mono;
 
 import java.net.ConnectException;
 import java.time.Instant;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Global reactive exception handler for the API Gateway.
@@ -51,7 +52,7 @@ public class GatewayErrorWebExceptionHandler implements ErrorWebExceptionHandler
                 Instant.now(),
                 status.value(),
                 status.getReasonPhrase(),
-                ex.getMessage(),
+                resolveMessage(ex, status),
                 path
         );
 
@@ -77,6 +78,19 @@ public class GatewayErrorWebExceptionHandler implements ErrorWebExceptionHandler
         if (ex instanceof WebClientRequestException wre && wre.getCause() instanceof ConnectException) {
             return HttpStatus.SERVICE_UNAVAILABLE;
         }
+        if (ex instanceof TimeoutException) {
+            return HttpStatus.SERVICE_UNAVAILABLE;
+        }
         return HttpStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    private String resolveMessage(Throwable ex, HttpStatus status) {
+        if (status == HttpStatus.SERVICE_UNAVAILABLE) {
+            return "Upstream service unavailable";
+        }
+        if (ex instanceof ResponseStatusException rse && rse.getReason() != null) {
+            return rse.getReason();
+        }
+        return "An internal error occurred";
     }
 }

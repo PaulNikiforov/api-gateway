@@ -15,7 +15,7 @@ spring:
             - id: auth-service
               uri: ${services.auth-service-url}
               predicates:
-                - Path=/api/v1/auth/**
+                - Path=/api/v1/auth/login,/api/v1/auth/refresh
 
             - id: user-service
               uri: ${services.user-service-url}

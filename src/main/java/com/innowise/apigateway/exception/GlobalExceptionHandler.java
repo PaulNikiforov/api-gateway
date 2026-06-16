@@ -1,6 +1,7 @@
 package com.innowise.apigateway.exception;
 
 import com.innowise.apigateway.dto.ErrorResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import java.time.Instant;
  * filter chain and routing path bypass this handler and are caught by
  * {@link GatewayErrorWebExceptionHandler} instead.
  */
+@Slf4j
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -72,16 +74,20 @@ public class GlobalExceptionHandler {
             WebClientResponseException ex,
             ServerWebExchange exchange) {
 
-        HttpStatusCode status = ex.getStatusCode();
+        HttpStatusCode rawStatus = ex.getStatusCode();
+        HttpStatusCode gatewayStatus = rawStatus.is5xxServerError() ? HttpStatus.BAD_GATEWAY : rawStatus;
+        HttpStatus resolved = HttpStatus.resolve(gatewayStatus.value());
+        String error = resolved != null ? resolved.getReasonPhrase() : ex.getStatusText();
+        String message = rawStatus.is5xxServerError() ? "Upstream service error" : ex.getStatusText();
         String path = exchange.getRequest().getPath().value();
         ErrorResponse body = new ErrorResponse(
                 Instant.now(),
-                status.value(),
-                ex.getStatusText(),
-                ex.getMessage(),
+                gatewayStatus.value(),
+                error,
+                message,
                 path
         );
-        return ResponseEntity.status(status).body(body);
+        return ResponseEntity.status(gatewayStatus).body(body);
     }
 
     /**
@@ -97,11 +103,12 @@ public class GlobalExceptionHandler {
             ServerWebExchange exchange) {
 
         String path = exchange.getRequest().getPath().value();
+        log.error("Unhandled exception for path {}", path, ex);
         ErrorResponse body = new ErrorResponse(
                 Instant.now(),
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(),
-                ex.getMessage(),
+                "An internal error occurred",
                 path
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);

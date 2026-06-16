@@ -41,8 +41,9 @@ paths:
         1. Creates a user record in User Service (`POST /api/v1/users`).
         2. Saves credentials in Auth Service (`POST /api/v1/auth/credentials`).
 
-        If step 2 fails, Gateway compensates by deleting the User Service record
-        (`DELETE /api/v1/users/{userId}`).
+        If step 2 fails, Gateway compensates with a two-step rollback:
+        first deactivates the record (`PATCH /api/v1/users/{userId}/deactivate`),
+        then hard-deletes it (`DELETE /api/v1/users/{userId}`).
       operationId: register
       security: []
       requestBody:

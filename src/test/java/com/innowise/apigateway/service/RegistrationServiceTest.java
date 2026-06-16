@@ -1,66 +1,20 @@
 package com.innowise.apigateway.service;
 
+import com.innowise.apigateway.AbstractDownstreamClientTest;
 import com.innowise.apigateway.dto.RegisterRequest;
 import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.test.StepVerifier;
 
-import java.io.IOException;
-import java.time.Duration;
 import java.time.LocalDate;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class RegistrationServiceTest {
-
-    @BeforeAll
-    static void warmUpNetty() throws IOException {
-        try (MockWebServer warmup = new MockWebServer()) {
-            warmup.start();
-            warmup.enqueue(new MockResponse().setResponseCode(200));
-            StepVerifier.create(
-                    WebClient.builder().baseUrl(warmup.url("/").toString()).build()
-                            .get().retrieve().toBodilessEntity()
-            ).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(30));
-        }
-    }
-
-    private MockWebServer userServiceServer;
-    private MockWebServer authServiceServer;
-    private RegistrationService registrationService;
-
-    @BeforeEach
-    void setUp() throws IOException {
-        userServiceServer = new MockWebServer();
-        authServiceServer = new MockWebServer();
-        userServiceServer.start();
-        authServiceServer.start();
-
-        WebClient userServiceWebClient = WebClient.builder()
-                .baseUrl(userServiceServer.url("/").toString())
-                .build();
-        WebClient authServiceWebClient = WebClient.builder()
-                .baseUrl(authServiceServer.url("/").toString())
-                .build();
-
-        registrationService = new RegistrationService(userServiceWebClient, authServiceWebClient);
-    }
-
-    @AfterEach
-    void tearDown() throws IOException {
-        userServiceServer.shutdown();
-        authServiceServer.shutdown();
-    }
+class RegistrationServiceTest extends AbstractDownstreamClientTest {
 
     @Test
     void register_whenBothServicesSucceed_shouldReturnCombinedResponse() {
@@ -86,7 +40,7 @@ class RegistrationServiceTest {
     }
 
     @Test
-    void register_whenAuthServiceFails_shouldCompensateWithDeleteAndPropagateError() throws InterruptedException {
+    void register_whenAuthServiceFails_shouldCompensateWithDeactivateThenDeleteAndPropagateError() throws InterruptedException {
         userServiceServer.enqueue(new MockResponse()
                 .setResponseCode(201)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -95,8 +49,8 @@ class RegistrationServiceTest {
         authServiceServer.enqueue(new MockResponse()
                 .setResponseCode(500));
 
-        userServiceServer.enqueue(new MockResponse()
-                .setResponseCode(204));
+        userServiceServer.enqueue(new MockResponse().setResponseCode(200));
+        userServiceServer.enqueue(new MockResponse().setResponseCode(204));
 
         RegisterRequest request = new RegisterRequest(
                 "Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123");
@@ -105,19 +59,21 @@ class RegistrationServiceTest {
                 .expectError(WebClientResponseException.class)
                 .verify();
 
-        RecordedRequest firstRequest = userServiceServer.takeRequest(1, TimeUnit.SECONDS);
-        assertThat(firstRequest).isNotNull();
-        assertThat(firstRequest.getMethod()).isEqualTo("POST");
-        assertThat(firstRequest.getPath()).isEqualTo("/api/v1/users");
+        RecordedRequest createRequest = takeNext(userServiceServer);
+        assertThat(createRequest.getMethod()).isEqualTo("POST");
+        assertThat(createRequest.getPath()).isEqualTo("/api/v1/users");
 
-        RecordedRequest secondRequest = userServiceServer.takeRequest(1, TimeUnit.SECONDS);
-        assertThat(secondRequest).isNotNull();
-        assertThat(secondRequest.getMethod()).isEqualTo("DELETE");
-        assertThat(secondRequest.getPath()).isEqualTo("/api/v1/users/42");
+        RecordedRequest deactivateRequest = takeNext(userServiceServer);
+        assertThat(deactivateRequest.getMethod()).isEqualTo("PATCH");
+        assertThat(deactivateRequest.getPath()).isEqualTo("/api/v1/users/42/deactivate");
+
+        RecordedRequest deleteRequest = takeNext(userServiceServer);
+        assertThat(deleteRequest.getMethod()).isEqualTo("DELETE");
+        assertThat(deleteRequest.getPath()).isEqualTo("/api/v1/users/42");
     }
 
     @Test
-    void register_whenAuthReturns409_shouldCompensateWithDeleteAndPropagateConflict() throws InterruptedException {
+    void register_whenAuthReturns409_shouldPropagateConflictWithoutCompensation() throws InterruptedException {
         userServiceServer.enqueue(new MockResponse()
                 .setResponseCode(201)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -126,9 +82,6 @@ class RegistrationServiceTest {
         authServiceServer.enqueue(new MockResponse()
                 .setResponseCode(409));
 
-        userServiceServer.enqueue(new MockResponse()
-                .setResponseCode(204));
-
         RegisterRequest request = new RegisterRequest(
                 "Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123");
 
@@ -136,13 +89,10 @@ class RegistrationServiceTest {
                 .expectError(WebClientResponseException.Conflict.class)
                 .verify();
 
-        RecordedRequest createRequest = userServiceServer.takeRequest(1, TimeUnit.SECONDS);
-        assertThat(createRequest).isNotNull();
+        // Only the initial POST /api/v1/users — no compensation PATCH or DELETE
+        assertThat(userServiceServer.getRequestCount()).isEqualTo(1);
+        RecordedRequest createRequest = takeNext(userServiceServer);
         assertThat(createRequest.getMethod()).isEqualTo("POST");
-
-        RecordedRequest deleteRequest = userServiceServer.takeRequest(1, TimeUnit.SECONDS);
-        assertThat(deleteRequest).isNotNull();
-        assertThat(deleteRequest.getMethod()).isEqualTo("DELETE");
-        assertThat(deleteRequest.getPath()).isEqualTo("/api/v1/users/42");
+        assertThat(createRequest.getPath()).isEqualTo("/api/v1/users");
     }
 }
