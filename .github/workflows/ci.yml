@@ -55,8 +55,9 @@ jobs:
         run: |
           git clone --depth 1 --branch tasks/auth1 https://github.com/PaulNikiforov/authservice.git _stubs/authservice
           git clone --depth 1 --branch task/usr0 https://github.com/PaulNikiforov/userservice.git _stubs/userservice
-          mvn -f _stubs/authservice/pom.xml install -DskipTests -B -q
-          mvn -f _stubs/userservice/pom.xml install -DskipTests -B -q
+          chmod +x _stubs/authservice/mvnw _stubs/userservice/mvnw
+          (cd _stubs/authservice && ./mvnw install -DskipTests -B -q)
+          (cd _stubs/userservice && ./mvnw install -DskipTests -B -q)
 
       - run: mvn verify -B -DskipITs
 
