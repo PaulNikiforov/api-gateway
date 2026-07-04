@@ -8,7 +8,6 @@ import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDate;
@@ -16,17 +15,10 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Verifies the exact request bodies Gateway sends to Auth Service.
- * Covers POST /api/v1/auth/credentials (registration) and POST /api/v1/auth/validate (token check).
+ * Verifies the exact request body Gateway sends to Auth Service for POST /api/v1/auth/credentials
+ * during registration.
  */
 class GatewayToAuthServiceClientTest extends AbstractDownstreamClientTest {
-
-    private AuthTokenValidationClient validationClient;
-
-    @Override
-    protected void onSetUp(WebClient userClient, WebClient authClient) {
-        validationClient = new AuthTokenValidationClient(authClient);
-    }
 
     @Test
     void register_sendsUserIdEmailPasswordToAuthCredentials() throws Exception {
@@ -56,24 +48,5 @@ class GatewayToAuthServiceClientTest extends AbstractDownstreamClientTest {
         assertThat(body.get("userId").asLong()).isEqualTo(42L);
         assertThat(body.get("email").asText()).isEqualTo("alice@example.com");
         assertThat(body.get("password").asText()).isEqualTo("password123");
-    }
-
-    @Test
-    void validate_sendsAccessTokenToAuthValidate() throws Exception {
-        authServiceServer.enqueue(new MockResponse()
-                .setResponseCode(200)
-                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .setBody("{\"userId\":7,\"role\":\"USER\"}"));
-
-        StepVerifier.create(validationClient.validate("test-jwt-token"))
-                .expectNextMatches(vr -> vr.userId() == 7L && "USER".equals(vr.role()))
-                .verifyComplete();
-
-        RecordedRequest recorded = takeNext(authServiceServer);
-        assertThat(recorded.getMethod()).isEqualTo("POST");
-        assertThat(recorded.getPath()).isEqualTo("/api/v1/auth/validate");
-
-        JsonNode body = MAPPER.readTree(recorded.getBody().readByteArray());
-        assertThat(body.get("accessToken").asText()).isEqualTo("test-jwt-token");
     }
 }

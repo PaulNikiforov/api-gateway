@@ -1,5 +1,7 @@
 package com.innowise.apigateway.exception;
 
+import com.innowise.apigateway.config.JsonAuthenticationEntryPoint;
+import com.innowise.apigateway.config.SecurityConfig;
 import com.innowise.apigateway.controller.RegistrationController;
 import com.innowise.apigateway.dto.ErrorResponse;
 import com.innowise.apigateway.dto.RegisterRequest;
@@ -7,6 +9,7 @@ import com.innowise.apigateway.service.RegistrationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -19,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @WebFluxTest(RegistrationController.class)
+@Import({SecurityConfig.class, JsonAuthenticationEntryPoint.class})
 class GlobalExceptionHandlerTest {
 
     @Autowired
