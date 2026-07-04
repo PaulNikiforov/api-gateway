@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @ActiveProfiles("local")
-class JwtDecoderConfigTest {
+class ReactiveJwtDecoderAutoConfigurationTest {
 
     private static final String KEY_ID = "test-key-1";
     private static final MockWebServer mockWebServer = new MockWebServer();
