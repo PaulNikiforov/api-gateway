@@ -91,7 +91,7 @@ public class RegistrationService {
                     log.error("Compensation: delete failed for userId={}", userId, err);
                     return Mono.empty();
                 })
-                // Aggregate ceiling: no single-step timeout should ever exceed 2×PER_CALL_TIMEOUT total (F8)
+                // Aggregate ceiling: no single-step timeout should ever exceed 2×PER_CALL_TIMEOUT total
                 .timeout(GatewayConstants.PER_CALL_TIMEOUT.multipliedBy(2))
                 .onErrorResume(err -> {
                     log.error("Compensation: aggregate timeout exceeded for userId={}", userId, err);
