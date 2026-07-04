@@ -155,9 +155,10 @@ class SystemE2ETest {
     // ── Critical path 3: Authenticated resource access (Gateway JWT filter → User Service) ─
 
     /**
-     * Protected GET crosses 2 services: Gateway validates JWT against Auth Service
-     * (POST /api/v1/auth/validate), injects X-User-Id / X-User-Role headers, then
-     * forwards to User Service. Verifies the full auth filter + routing chain.
+     * Protected GET crosses 2 services: Gateway validates the JWT locally against the
+     * Auth Service JWKS endpoint (no call to Auth Service per request), then forwards the
+     * request (with its original {@code Authorization} header) to User Service. Verifies the
+     * full auth filter + routing chain.
      */
     @Test
     void getUser_withValidJwtToken_returnsUserData() {
