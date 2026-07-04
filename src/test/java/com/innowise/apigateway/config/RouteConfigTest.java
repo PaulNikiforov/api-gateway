@@ -23,7 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("local")
 @TestPropertySource(properties = {
         "services.auth-service-url=http://localhost:9999",
-        "services.user-service-url=http://localhost:9998"
+        "services.user-service-url=http://localhost:9998",
+        "services.order-service-url=http://localhost:9997",
+        "services.payment-service-url=http://localhost:9996"
 })
 class RouteConfigTest {
 
@@ -31,16 +33,18 @@ class RouteConfigTest {
     private RouteLocator routeLocator;
 
     @Test
-    void getRoutes_whenContextLoaded_shouldRouteAuthAndUserServicesFromServicesProperties() {
+    void getRoutes_whenContextLoaded_shouldRouteAuthUserOrderAndPaymentServicesFromServicesProperties() {
         StepVerifier.create(
                 routeLocator.getRoutes()
-                        .filter(r -> "auth-service".equals(r.getId()) || "user-service".equals(r.getId()))
+                        .filter(r -> "auth-service".equals(r.getId()) || "user-service".equals(r.getId()) || "order-service".equals(r.getId()) || "payment-service".equals(r.getId()))
                         .collectMap(Route::getId, r -> r.getUri().toString())
         )
                 .assertNext(routes -> {
-                    assertThat(routes).containsKeys("auth-service", "user-service");
+                    assertThat(routes).containsKeys("auth-service", "user-service", "order-service", "payment-service");
                     assertThat(routes.get("auth-service")).isEqualTo("http://localhost:9999");
                     assertThat(routes.get("user-service")).isEqualTo("http://localhost:9998");
+                    assertThat(routes.get("order-service")).isEqualTo("http://localhost:9997");
+                    assertThat(routes.get("payment-service")).isEqualTo("http://localhost:9996");
                 })
                 .verifyComplete();
     }
@@ -62,15 +66,60 @@ class RouteConfigTest {
     }
 
     @Test
-    void getRoutes_whenContextLoaded_shouldHaveExactlyAuthAndUserRoutes() {
+    void getRoutes_whenContextLoaded_shouldMatchOrderPathPredicateAndRejectOtherPaths() {
+        StepVerifier.create(
+                routeLocator.getRoutes()
+                        .filter(r -> "order-service".equals(r.getId()))
+                        .next()
+        )
+                .assertNext(route -> {
+                    assertThat(matches(route, "/api/v1/orders/123")).isTrue();
+                    assertThat(matches(route, "/api/v1/users/1")).isFalse();
+                    assertThat(matches(route, "/api/v1/register")).isFalse();
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void getRoutes_whenContextLoaded_shouldMatchPaymentPathPredicateAndRejectOtherPaths() {
+        StepVerifier.create(
+                routeLocator.getRoutes()
+                        .filter(r -> "payment-service".equals(r.getId()))
+                        .next()
+        )
+                .assertNext(route -> {
+                    assertThat(matches(route, "/api/v1/payments/55")).isTrue();
+                    assertThat(matches(route, "/api/v1/users/1")).isFalse();
+                    assertThat(matches(route, "/api/v1/register")).isFalse();
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void getRoutes_whenContextLoaded_shouldMatchCardsPathPredicateAndRouteToUserServiceUrl() {
+        StepVerifier.create(
+                routeLocator.getRoutes()
+                        .filter(r -> "user-cards".equals(r.getId()))
+                        .next()
+        )
+                .assertNext(route -> {
+                    assertThat(route.getUri().toString()).isEqualTo("http://localhost:9998");
+                    assertThat(matches(route, "/api/v1/cards/42")).isTrue();
+                    assertThat(matches(route, "/api/v1/users/1")).isFalse();
+                    assertThat(matches(route, "/api/v1/register")).isFalse();
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void getRoutes_whenContextLoaded_shouldHaveExactlyFiveRoutesIncludingUserCards() {
         StepVerifier.create(
                 routeLocator.getRoutes()
                         .map(Route::getId)
                         .collectList()
         )
                 .assertNext(ids -> {
-                    assertThat(ids).containsExactlyInAnyOrder("auth-service", "user-service");
-                    assertThat(ids).doesNotContain("order-service", "payment-service");
+                    assertThat(ids).containsExactlyInAnyOrder("auth-service", "user-service", "order-service", "payment-service", "user-cards");
                 })
                 .verifyComplete();
     }

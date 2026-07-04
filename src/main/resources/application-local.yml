@@ -6,6 +6,7 @@ services:
   auth-service-url: ${AUTH_SERVICE_URL:http://localhost:8081}
   user-service-url: ${USER_SERVICE_URL:http://localhost:8080}
   order-service-url: ${ORDER_SERVICE_URL:http://localhost:8082}
+  payment-service-url: ${PAYMENT_SERVICE_URL:http://localhost:8083}
 
 spring:
   cloud:
@@ -22,3 +23,18 @@ spring:
               uri: ${services.user-service-url}
               predicates:
                 - Path=/api/v1/users/**
+
+            - id: order-service
+              uri: ${services.order-service-url}
+              predicates:
+                - Path=/api/v1/orders/**
+
+            - id: payment-service
+              uri: ${services.payment-service-url}
+              predicates:
+                - Path=/api/v1/payments/**
+
+            - id: user-cards
+              uri: ${services.user-service-url}
+              predicates:
+                - Path=/api/v1/cards/**
