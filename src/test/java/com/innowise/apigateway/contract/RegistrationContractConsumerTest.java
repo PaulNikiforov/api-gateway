@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.cloud.contract.stubrunner.junit.StubRunnerExtension;
 import org.springframework.cloud.contract.stubrunner.spring.StubRunnerProperties;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.http.codec.json.Jackson2JsonDecoder;
 import org.springframework.http.codec.json.Jackson2JsonEncoder;
@@ -19,6 +21,7 @@ import reactor.netty.http.client.HttpClient;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -52,6 +55,8 @@ class RegistrationContractConsumerTest {
             .stubsMode(StubRunnerProperties.StubsMode.LOCAL);
 
     private RegistrationService registrationService;
+    private WebClient userClient;
+    private WebClient authClient;
 
     @BeforeEach
     void setUp() {
@@ -70,10 +75,10 @@ class RegistrationContractConsumerTest {
 
         ReactorClientHttpConnector connector = new ReactorClientHttpConnector(HttpClient.create());
 
-        WebClient userClient = WebClient.builder()
+        userClient = WebClient.builder()
                 .clientConnector(connector).exchangeStrategies(strategies)
                 .baseUrl("http://localhost:" + userPort).build();
-        WebClient authClient = WebClient.builder()
+        authClient = WebClient.builder()
                 .clientConnector(connector).exchangeStrategies(strategies)
                 .baseUrl("http://localhost:" + authPort).build();
 
@@ -92,5 +97,66 @@ class RegistrationContractConsumerTest {
                     assertThat(response.refreshToken()).isNotBlank();
                 })
                 .verifyComplete();
+    }
+
+    /**
+     * {@code should_login_user.groovy} is pure Gateway routing in production (no Java code parses
+     * the response body), but the stub is downloaded and otherwise never asserted against — this
+     * closes that gap directly against the contract-derived stub, independent of routing config.
+     */
+    @Test
+    void login_withValidRequest_receivesTokensFromStub() {
+        Map<String, Object> body = authClient.post()
+                .uri("/api/v1/auth/login")
+                .bodyValue(Map.of("email", "contract@gateway.com", "password", "ContractPass1!"))
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .block();
+
+        assertThat(body).isNotNull();
+        assertThat(body.get("accessToken")).isNotNull();
+        assertThat(body.get("refreshToken")).isNotNull();
+        assertThat(body.get("userId")).isNotNull();
+        assertThat(body.get("role")).isNotNull();
+    }
+
+    /**
+     * Exercises {@code should_deactivate_user.groovy} directly against the stub. In production
+     * this call is only reachable through {@link RegistrationService}'s private compensation path
+     * (triggered on auth-service 5xx/network failure); calling the stub directly here verifies the
+     * contract itself without needing to force that failure path.
+     *
+     * <p>The consumer-side stub matches the literal path {@code /api/v1/users/1/deactivate} (see
+     * the contract's {@code consumer(...)} value) — the id must be exactly {@code 1}.
+     */
+    @Test
+    void deactivateUser_matchesContract() {
+        HttpStatus status = userClient.patch()
+                .uri("/api/v1/users/{id}/deactivate", 1L)
+                .retrieve()
+                .toBodilessEntity()
+                .map(response -> (HttpStatus) response.getStatusCode())
+                .block();
+
+        assertThat(status).isEqualTo(HttpStatus.OK);
+    }
+
+    /**
+     * Exercises {@code should_delete_inactive_user.groovy} directly against the stub — see
+     * {@link #deactivateUser_matchesContract()} for why this bypasses {@link RegistrationService}.
+     *
+     * <p>The consumer-side stub matches the literal path {@code /api/v1/users/1} — the id must be
+     * exactly {@code 1}.
+     */
+    @Test
+    void deleteUser_matchesContract() {
+        HttpStatus status = userClient.delete()
+                .uri("/api/v1/users/{id}", 1L)
+                .retrieve()
+                .toBodilessEntity()
+                .map(response -> (HttpStatus) response.getStatusCode())
+                .block();
+
+        assertThat(status).isEqualTo(HttpStatus.NO_CONTENT);
     }
 }
