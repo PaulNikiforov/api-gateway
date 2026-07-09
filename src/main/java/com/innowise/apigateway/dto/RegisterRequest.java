@@ -8,15 +8,6 @@ import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 
-/**
- * DTO for user registration requests.
- *
- * @param name      the user's first name
- * @param surname   the user's last name
- * @param birthDate the user's date of birth (must be in the past)
- * @param email     the user's email address
- * @param password  the user's password (minimum 8 characters)
- */
 public record RegisterRequest(
         @NotBlank String name,
         @NotBlank String surname,

@@ -20,10 +20,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
-/**
- * Handles {@code POST /api/v1/register}. Not proxied — served directly by Gateway.
- * Listed in public whitelist; no JWT required.
- */
 @Tag(name = "Registration", description = "User registration — orchestrated by Gateway across User Service and Auth Service")
 @RestController
 @RequiredArgsConstructor

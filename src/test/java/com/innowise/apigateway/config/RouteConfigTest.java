@@ -16,9 +16,6 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// Routes are profile-specific; @ActiveProfiles("local") loads application-local.yml.
-// @TestPropertySource overrides services.* to sentinel values so URI assertions
-// prove that routes reference ${services.*} rather than ${AUTH_SERVICE_URL:...} directly.
 @SpringBootTest
 @ActiveProfiles("local")
 @TestPropertySource(properties = {

@@ -9,24 +9,11 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
-/**
- * Spring Security configuration for the reactive Gateway.
- *
- * <p>Whitelist endpoints (registration, login, refresh), Swagger/OpenAPI resources and the
- * actuator health probe are permitted without a JWT; every other request must present a valid
- * JWT, verified locally against the authservice JWKS endpoint via the configured
- * {@code ReactiveJwtDecoder}.
- */
 @Configuration
 @EnableWebFluxSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    /**
-     * Whitelisted POST paths, each listed with and without a trailing slash so
-     * {@code Spring}'s {@code PathPatternParser} (which does not match an optional trailing
-     * separator by default) treats {@code /api/v1/register} and {@code /api/v1/register/} alike.
-     */
     private static final String[] WHITELIST_POST_PATHS = {
             "/api/v1/register", "/api/v1/register/",
             "/api/v1/auth/login", "/api/v1/auth/login/",

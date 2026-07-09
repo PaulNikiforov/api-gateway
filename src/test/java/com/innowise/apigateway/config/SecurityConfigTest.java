@@ -32,11 +32,6 @@ import java.util.Date;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Verifies whitelist bypass and JWT-based authentication through the real
- * {@link org.springframework.security.web.server.SecurityWebFilterChain}, including valid,
- * expired and wrong-signature tokens against a locally served JWKS.
- */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebTestClient
 class SecurityConfigTest {

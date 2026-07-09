@@ -11,8 +11,6 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// webEnvironment = NONE is incompatible with GatewayAutoConfiguration (requires ServerProperties);
-// full context is the minimal viable option for this smoke test.
 @SpringBootTest
 @TestPropertySource(properties = {
         "services.auth-service-url=http://localhost:9999",

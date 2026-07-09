@@ -18,25 +18,6 @@ import java.net.ConnectException;
 import java.time.Instant;
 import java.util.concurrent.TimeoutException;
 
-/**
- * Global reactive exception handler for the API Gateway.
- *
- * <p><b>Two-layer error handling:</b> this handler covers exceptions from the Gateway filter
- * chain and routing path. Exceptions thrown by {@code @RestController} methods (e.g. the
- * registration endpoint) are handled earlier by {@link GlobalExceptionHandler}
- * ({@code @RestControllerAdvice}) and never reach this handler.
- *
- * <p>Runs at order {@code -2} to execute before the default Spring Boot error handling
- * ({@code -1}).
- *
- * <p>Mapping rules:
- * <ul>
- *   <li>{@link ConnectException} or {@link WebClientRequestException} wrapping it
- *       → {@code 503 SERVICE_UNAVAILABLE}</li>
- *   <li>{@link ResponseStatusException} → forward its status code (includes 401 from the auth filter)</li>
- *   <li>All other exceptions → {@code 500 INTERNAL_SERVER_ERROR}</li>
- * </ul>
- */
 @Slf4j
 @Component
 @Order(-2)

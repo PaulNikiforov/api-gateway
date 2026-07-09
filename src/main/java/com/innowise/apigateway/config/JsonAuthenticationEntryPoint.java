@@ -9,12 +9,6 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-/**
- * Signals a 401 as a {@link ResponseStatusException} instead of writing a response directly, so
- * that {@link com.innowise.apigateway.exception.GatewayErrorWebExceptionHandler} renders it into
- * the same {@link ErrorResponse} JSON envelope used for every other Gateway error — avoiding a
- * second, parallel implementation of that envelope here.
- */
 @Component
 public class JsonAuthenticationEntryPoint implements ServerAuthenticationEntryPoint {
 

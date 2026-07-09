@@ -14,11 +14,6 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Verifies the exact requests Gateway sends to User Service.
- * Ensures {name, surname, birthDate, email} are forwarded, password is never exposed,
- * and compensation (PATCH deactivate → DELETE) is triggered on auth failure.
- */
 class GatewayToUserServiceClientTest extends AbstractDownstreamClientTest {
 
     @Test
@@ -67,7 +62,7 @@ class GatewayToUserServiceClientTest extends AbstractDownstreamClientTest {
                 .expectError()
                 .verify();
 
-        takeNext(userServiceServer); // POST /api/v1/users
+        takeNext(userServiceServer);
 
         RecordedRequest deactivate = takeNext(userServiceServer);
         assertThat(deactivate.getMethod()).isEqualTo("PATCH");
@@ -84,7 +79,6 @@ class GatewayToUserServiceClientTest extends AbstractDownstreamClientTest {
                 .setResponseCode(201)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody("{\"id\":1}"));
-        // auth stub needed to let the registration flow complete; only the user-service request body is asserted
         authServiceServer.enqueue(new MockResponse()
                 .setResponseCode(201)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)

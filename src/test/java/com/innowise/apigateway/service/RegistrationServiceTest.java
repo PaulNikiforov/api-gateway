@@ -89,7 +89,6 @@ class RegistrationServiceTest extends AbstractDownstreamClientTest {
                 .expectError(WebClientResponseException.Conflict.class)
                 .verify();
 
-        // Only the initial POST /api/v1/users — no compensation PATCH or DELETE
         assertThat(userServiceServer.getRequestCount()).isEqualTo(1);
         RecordedRequest createRequest = takeNext(userServiceServer);
         assertThat(createRequest.getMethod()).isEqualTo("POST");

@@ -30,10 +30,6 @@ import java.util.Date;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Verifies that the Spring context wires a {@link ReactiveJwtDecoder} bean capable of
- * decoding JWTs signed with an RSA key whose public counterpart is published via a JWKS endpoint.
- */
 @SpringBootTest
 @ActiveProfiles("local")
 class ReactiveJwtDecoderAutoConfigurationTest {

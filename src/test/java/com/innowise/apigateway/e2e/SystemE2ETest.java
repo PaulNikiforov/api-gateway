@@ -21,26 +21,6 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * System E2E test — golden path only.
- *
- * <p>Starts the full platform via {@code compose.yaml} and exercises the three journeys that:
- * (a) cross 2+ services through the Gateway, and (b) would cause immediate business impact
- * if broken silently. Error scenarios (401, 409, 404) are covered at unit/integration level.
- *
- * <p><b>Prerequisite</b>: build images once with {@code docker compose build} from
- * {@code /Innowise/}.
- *
- * <p><b>Run</b>: {@code mvn failsafe:integration-test failsafe:verify}
- *
- * <p>Port 8090 is the host-side mapping for api-gateway ({@code 127.0.0.1:8090:8080} in
- * {@code compose.yaml}). {@code withExposedService} is intentionally absent: Docker Compose v2
- * names containers with hyphens ({@code ...-api-gateway-1}) but the Testcontainers socat
- * ambassador uses underscores ({@code ..._api-gateway_1}), causing a link failure. Mapped host
- * port is used directly instead.
- *
- * <p>See: <a href="../../../../../../../../../MICROSERVICES-TESTING.md">MICROSERVICES-TESTING.md §5</a>
- */
 @Tag("e2e")
 @Testcontainers
 class SystemE2ETest {
@@ -50,12 +30,6 @@ class SystemE2ETest {
     private static final String TEST_EMAIL = "e2e_golden@example.com";
     private static final String TEST_PASSWORD = "Password1!";
 
-    /**
-     * authservice signs access tokens with RS256 (Decision 13) — a private/public RSA key pair
-     * is required, not an HS256 secret. This is the same fixed test key pair authservice's own
-     * unit tests use ({@code authservice/src/test/resources/application.yaml}); it exists only
-     * to let the compose stack boot for this test and carries no other significance.
-     */
     private static final String TEST_JWT_PRIVATE_KEY = """
             -----BEGIN PRIVATE KEY-----
             MIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQDiSu58gZkJegfs
@@ -109,10 +83,6 @@ class SystemE2ETest {
     static long registeredUserId;
     static String accessToken;
 
-    /**
-     * Waits for api-gateway health, then registers a shared user for all tests.
-     * Shared state avoids 3 separate registration calls (each takes ~500 ms cross-service).
-     */
     @BeforeAll
     static void setUpGoldenPathUser() throws Exception {
         client = WebTestClient.bindToServer()
@@ -143,13 +113,6 @@ class SystemE2ETest {
         accessToken = (String) body.get("accessToken");
     }
 
-    // ── Critical path 1: Registration (Gateway → User Service → Auth Service) ───
-
-    /**
-     * Full registration flow crosses 3 services: Gateway orchestrates calls to
-     * User Service (create user) and Auth Service (create credentials), then
-     * assembles the response. Cannot be decomposed into contract tests alone.
-     */
     @Test
     void register_createsUserAndReturnsTokens() {
         String uniqueEmail = "e2e_reg_" + System.nanoTime() + "@example.com";
@@ -176,13 +139,6 @@ class SystemE2ETest {
         assertThat(body.get("refreshToken")).isNotNull();
     }
 
-    // ── Critical path 2: Authentication (Gateway → Auth Service) ─────────────────
-
-    /**
-     * Login flow: Gateway proxies to Auth Service and returns tokens.
-     * Verifies that the route config, JWT secret propagation, and response
-     * mapping all work end-to-end.
-     */
     @Test
     void login_withValidCredentials_returnsTokens() {
         client.post()
@@ -196,14 +152,6 @@ class SystemE2ETest {
                 .jsonPath("$.refreshToken").isNotEmpty();
     }
 
-    // ── Critical path 3: Authenticated resource access (Gateway JWT filter → User Service) ─
-
-    /**
-     * Protected GET crosses 2 services: Gateway validates the JWT locally against the
-     * Auth Service JWKS endpoint (no call to Auth Service per request), then forwards the
-     * request (with its original {@code Authorization} header) to User Service. Verifies the
-     * full auth filter + routing chain.
-     */
     @Test
     void getUser_withValidJwtToken_returnsUserData() {
         client.get()
@@ -216,12 +164,6 @@ class SystemE2ETest {
                 .jsonPath("$.email").isEqualTo(TEST_EMAIL);
     }
 
-    /**
-     * Polls GET /actuator/health every 10 s, up to 15 minutes, until HTTP 200.
-     *
-     * <p>Replaces the Testcontainers socat-ambassador Wait strategy which is broken
-     * with Docker Compose v2 hyphen-based container naming.
-     */
     private static void waitForGatewayHealth() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
         HttpRequest req = HttpRequest.newBuilder()

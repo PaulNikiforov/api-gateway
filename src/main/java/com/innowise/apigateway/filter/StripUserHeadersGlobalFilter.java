@@ -8,18 +8,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-/**
- * Strips client-supplied {@code X-User-Id} and {@code X-User-Role} headers before a request
- * reaches routing or any downstream service — regardless of whitelist status, HTTP method, or
- * authentication outcome. Prevents header-injection spoofing of identity claims that downstream
- * services might otherwise trust.
- *
- * <p>Runs at the Gateway-routing stage, i.e. after Spring Security's {@code SecurityWebFilterChain}
- * ({@code WebFilter}s execute earlier in the WebFlux pipeline than {@link GlobalFilter}s). This is
- * safe today because JWT authentication only reads the {@code Authorization} header and never
- * trusts {@code X-User-*}; the stripping guarantee is "downstream never sees client-supplied
- * X-User-* headers", not "stripped before Security runs".
- */
 @Component
 public class StripUserHeadersGlobalFilter implements GlobalFilter, Ordered {
 

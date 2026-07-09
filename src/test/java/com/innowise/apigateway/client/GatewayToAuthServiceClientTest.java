@@ -14,10 +14,6 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Verifies the exact request body Gateway sends to Auth Service for POST /api/v1/auth/credentials
- * during registration.
- */
 class GatewayToAuthServiceClientTest extends AbstractDownstreamClientTest {
 
     @Test
@@ -38,7 +34,7 @@ class GatewayToAuthServiceClientTest extends AbstractDownstreamClientTest {
                 .expectNextCount(1)
                 .verifyComplete();
 
-        takeNext(userServiceServer); // POST /api/v1/users (discard — asserted in GatewayToUserServiceClientTest)
+        takeNext(userServiceServer);
 
         RecordedRequest authRequest = takeNext(authServiceServer);
         assertThat(authRequest.getMethod()).isEqualTo("POST");

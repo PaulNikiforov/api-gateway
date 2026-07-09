@@ -51,7 +51,6 @@ public abstract class AbstractDownstreamClientTest {
         onSetUp(userClient, authClient);
     }
 
-    /** Override to perform additional per-test setup with the same WebClient instances. */
     protected void onSetUp(WebClient userClient, WebClient authClient) {}
 
     @AfterEach
