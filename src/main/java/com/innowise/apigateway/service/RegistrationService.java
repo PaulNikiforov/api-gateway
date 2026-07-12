@@ -13,10 +13,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 @Slf4j
 @Service
 public class RegistrationService {
+
+    private static final Retry DOWNSTREAM_RETRY = Retry
+            .backoff(GatewayConstants.DOWNSTREAM_RETRIES, GatewayConstants.RETRY_MIN_BACKOFF)
+            .filter(RegistrationService::isRetryable)
+            .onRetryExhaustedThrow((spec, signal) -> signal.failure());
 
     private final WebClient userServiceWebClient;
     private final WebClient authServiceWebClient;
@@ -35,6 +41,7 @@ public class RegistrationService {
                 .retrieve()
                 .bodyToMono(UserCreatedResponse.class)
                 .timeout(GatewayConstants.PER_CALL_TIMEOUT)
+                .retryWhen(DOWNSTREAM_RETRY)
                 .flatMap(userCreated ->
                         authServiceWebClient.post()
                                 .uri("/api/v1/auth/credentials")
@@ -42,6 +49,7 @@ public class RegistrationService {
                                 .retrieve()
                                 .bodyToMono(CredentialsResponse.class)
                                 .timeout(GatewayConstants.PER_CALL_TIMEOUT)
+                                .retryWhen(DOWNSTREAM_RETRY)
                                 .map(creds -> new RegisterResponse(userCreated.userId(), creds.accessToken(), creds.refreshToken()))
                                 .onErrorResume(authError -> {
                                     if (authError instanceof WebClientResponseException ex && ex.getStatusCode().is4xxClientError()) {
@@ -56,12 +64,20 @@ public class RegistrationService {
                 );
     }
 
+    private static boolean isRetryable(Throwable throwable) {
+        if (throwable instanceof WebClientResponseException ex) {
+            return ex.getStatusCode().is5xxServerError();
+        }
+        return true;
+    }
+
     private Mono<Void> compensate(Long userId) {
         return userServiceWebClient.patch()
                 .uri("/api/v1/users/{id}/deactivate", userId)
                 .retrieve()
                 .toBodilessEntity()
                 .timeout(GatewayConstants.PER_CALL_TIMEOUT)
+                .retryWhen(DOWNSTREAM_RETRY)
                 .onErrorResume(err -> {
                     log.error("Compensation: deactivate failed for userId={}", userId, err);
                     return Mono.empty();
@@ -71,12 +87,13 @@ public class RegistrationService {
                         .retrieve()
                         .toBodilessEntity()
                         .timeout(GatewayConstants.PER_CALL_TIMEOUT)
+                        .retryWhen(DOWNSTREAM_RETRY)
                         .then())
                 .onErrorResume(err -> {
                     log.error("Compensation: delete failed for userId={}", userId, err);
                     return Mono.empty();
                 })
-                .timeout(GatewayConstants.PER_CALL_TIMEOUT.multipliedBy(2))
+                .timeout(GatewayConstants.COMPENSATION_TIMEOUT)
                 .onErrorResume(err -> {
                     log.error("Compensation: aggregate timeout exceeded for userId={}", userId, err);
                     return Mono.empty();

@@ -46,8 +46,8 @@ class RegistrationServiceTest extends AbstractDownstreamClientTest {
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody("{\"id\":42}"));
 
-        authServiceServer.enqueue(new MockResponse()
-                .setResponseCode(500));
+        authServiceServer.enqueue(new MockResponse().setResponseCode(500));
+        authServiceServer.enqueue(new MockResponse().setResponseCode(500));
 
         userServiceServer.enqueue(new MockResponse().setResponseCode(200));
         userServiceServer.enqueue(new MockResponse().setResponseCode(204));
@@ -62,6 +62,11 @@ class RegistrationServiceTest extends AbstractDownstreamClientTest {
         RecordedRequest createRequest = takeNext(userServiceServer);
         assertThat(createRequest.getMethod()).isEqualTo("POST");
         assertThat(createRequest.getPath()).isEqualTo("/api/v1/users");
+
+        RecordedRequest firstAuthAttempt = takeNext(authServiceServer);
+        assertThat(firstAuthAttempt.getMethod()).isEqualTo("POST");
+        RecordedRequest retriedAuthAttempt = takeNext(authServiceServer);
+        assertThat(retriedAuthAttempt.getMethod()).isEqualTo("POST");
 
         RecordedRequest deactivateRequest = takeNext(userServiceServer);
         assertThat(deactivateRequest.getMethod()).isEqualTo("PATCH");
