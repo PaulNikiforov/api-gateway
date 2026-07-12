@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paymentservice
+  namespace: platform
+  labels:
+    app: paymentservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: paymentservice
+  template:
+    metadata:
+      labels:
+        app: paymentservice
+    spec:
+      containers:
+        - name: paymentservice
+          image: paymentservice:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - configMapRef: { name: platform-config }
+            - secretRef: { name: platform-secrets }
+          env:
+            # MONGO_URI is built from these three via $(VAR) interpolation — that substitution
+            # only works for names already listed in this env: array, not for envFrom entries.
+            - name: PAYMENT_DB_USER
+              valueFrom:
+                configMapKeyRef: { name: platform-config, key: PAYMENT_DB_USER }
+            - name: PAYMENT_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: platform-secrets, key: PAYMENT_DB_PASSWORD }
+            - name: PAYMENT_DB_NAME
+              valueFrom:
+                configMapKeyRef: { name: platform-config, key: PAYMENT_DB_NAME }
+            - name: MONGO_URI
+              value: "mongodb://$(PAYMENT_DB_USER):$(PAYMENT_DB_PASSWORD)@payment-db:27017/$(PAYMENT_DB_NAME)?authSource=admin"
+          resources:
+            requests: { memory: "256Mi", cpu: "250m" }
+            limits: { memory: "512Mi", cpu: "500m" }
+          startupProbe:
+            httpGet: { path: /actuator/health, port: 8083 }
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8083 }
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8083 }
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paymentservice
+  namespace: platform
+spec:
+  type: ClusterIP
+  selector:
+    app: paymentservice
+  ports:
+    - port: 8083
+      targetPort: 8083

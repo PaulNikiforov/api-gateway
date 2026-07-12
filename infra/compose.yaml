@@ -1,0 +1,291 @@
+# Full platform compose — starts every service and its infrastructure.
+# All PostgreSQL databases: postgres:16-alpine (unified, ~50 MB vs ~450 MB full image).
+# Redis: redis:7-alpine. Kafka: apache/kafka-native:3.8.0 (KRaft, no Zookeeper).
+# MongoDB: mongo:8 (payment-service).
+#
+# Single external entry point: http://localhost:8090 (api-gateway).
+# DB ports are exposed to 127.0.0.1 for DBeaver/psql/mongosh access from host.
+#
+# Prerequisites:
+#   cp .env.example .env   # fill in secrets
+#
+# Usage:
+#   docker compose up --build          # first run
+#   docker compose up -d               # subsequent runs (images cached)
+#   docker compose down -v             # tear down including volumes
+
+services:
+
+  # ─── Infrastructure ───────────────────────────────────────────────────────
+
+  auth-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${AUTH_DB_NAME:-authdb}
+      POSTGRES_USER: ${AUTH_DB_USER:-authuser}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD}
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"   # localhost-only; for psql/DBeaver access from host
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-authuser} -d ${AUTH_DB_NAME:-authdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - platform
+
+  user-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${USER_DB_NAME:-userdb}
+      POSTGRES_USER: ${USER_DB_USER:-useruser}
+      POSTGRES_PASSWORD: ${USER_DB_PASSWORD}
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${USER_DB_USER:-useruser} -d ${USER_DB_NAME:-userdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - platform
+
+  order-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${ORDER_DB_NAME:-orderdb}
+      POSTGRES_USER: ${ORDER_DB_USER:-orderuser}
+      POSTGRES_PASSWORD: ${ORDER_DB_PASSWORD}
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ORDER_DB_USER:-orderuser} -d ${ORDER_DB_NAME:-orderdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - platform
+
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis-data:/data
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - platform
+
+  kafka:
+    image: apache/kafka-native:3.8.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - platform
+
+  payment-db:
+    image: mongo:8
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${PAYMENT_DB_USER:-paymentuser}
+      MONGO_INITDB_ROOT_PASSWORD: ${PAYMENT_DB_PASSWORD}
+      MONGO_INITDB_DATABASE: ${PAYMENT_DB_NAME:-paymentdb}
+    volumes:
+      - payment-db-data:/data/db
+    ports:
+      - "127.0.0.1:27017:27017"   # localhost-only; for mongosh/Compass access from host
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 20s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - platform
+
+  # ─── Applications ─────────────────────────────────────────────────────────
+
+  authservice:
+    build: ./authservice
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:postgresql://auth-db:5432/${AUTH_DB_NAME:-authdb}
+      DB_USERNAME: ${AUTH_DB_USER:-authuser}
+      DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      LIQUIBASE_ENABLED: "true"
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      JWT_KEY_ID: ${JWT_KEY_ID:-local-dev-key-1}
+      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION:-3600000}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_USER_ID: ${ADMIN_USER_ID:-}
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - platform
+
+  userservice:
+    build: ./userservice
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:postgresql://user-db:5432/${USER_DB_NAME:-userdb}
+      DB_USERNAME: ${USER_DB_USER:-useruser}
+      DB_PASSWORD: ${USER_DB_PASSWORD}
+      LIQUIBASE_ENABLED: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-}
+      ADMIN_SURNAME: ${ADMIN_SURNAME:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_USER_ID: ${ADMIN_USER_ID:-}
+      ADMIN_BIRTH_DATE: ${ADMIN_BIRTH_DATE:-}
+    depends_on:
+      user-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - platform
+
+  orderservice:
+    build: ./orderservice
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:postgresql://order-db:5432/${ORDER_DB_NAME:-orderdb}
+      DB_USERNAME: ${ORDER_DB_USER:-orderuser}
+      DB_PASSWORD: ${ORDER_DB_PASSWORD}
+      LIQUIBASE_ENABLED: "true"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      USER_SERVICE_URL: http://userservice:8080
+      AUTH_JWKS_URI: http://authservice:8081/oauth2/jwks
+    depends_on:
+      order-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      authservice:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - platform
+
+  paymentservice:
+    build: ./paymentservice
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      MONGO_URI: mongodb://${PAYMENT_DB_USER:-paymentuser}:${PAYMENT_DB_PASSWORD}@payment-db:27017/${PAYMENT_DB_NAME:-paymentdb}?authSource=admin
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EXTERNAL_PAYMENT_API_URL: ${EXTERNAL_PAYMENT_API_URL:-https://www.random.org/integers}
+      AUTH_JWKS_URI: http://authservice:8081/oauth2/jwks
+    depends_on:
+      payment-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      authservice:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - platform
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "127.0.0.1:8090:8080"   # single externally-exposed port for the entire platform
+    environment:
+      AUTH_SERVICE_URL: http://authservice:8081
+      AUTH_JWKS_URI: http://authservice:8081/oauth2/jwks
+      USER_SERVICE_URL: http://userservice:8080
+      ORDER_SERVICE_URL: http://orderservice:8082
+      PAYMENT_SERVICE_URL: http://paymentservice:8083
+    depends_on:
+      authservice:
+        condition: service_healthy
+      userservice:
+        condition: service_healthy
+      orderservice:
+        condition: service_healthy
+      paymentservice:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - platform
+
+networks:
+  platform:
+    driver: bridge
+
+volumes:
+  auth-db-data:
+  user-db-data:
+  order-db-data:
+  payment-db-data:
+  redis-data:
+

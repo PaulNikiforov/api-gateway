@@ -1,0 +1,49 @@
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: platform
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      # Required by the kind-provider ingress-nginx manifest's controller nodeSelector.
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      # api-gateway — единственная внешняя точка входа платформы, теперь через Ingress
+      # (ingress-nginx controller слушает 80/443 на ноде; api-gateway Service — ClusterIP)
+      - containerPort: 80
+        hostPort: 8090
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # HTTPS — зарезервировано, платформа пока полностью HTTP
+      - containerPort: 443
+        hostPort: 8453
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # auth-db — для psql/DBeaver с хоста (как 127.0.0.1:5432 в compose.yaml)
+      - containerPort: 30432
+        hostPort: 5432
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # user-db
+      - containerPort: 30433
+        hostPort: 5433
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # order-db
+      - containerPort: 30434
+        hostPort: 5434
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # redis
+      - containerPort: 30380
+        hostPort: 6380
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      # payment-db (MongoDB)
+      - containerPort: 30717
+        hostPort: 27017
+        listenAddress: "127.0.0.1"
+        protocol: TCP
