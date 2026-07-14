@@ -164,6 +164,7 @@ class SystemE2ETest {
                 .jsonPath("$.email").isEqualTo(TEST_EMAIL);
     }
 
+    @SuppressWarnings("java:S2925")
     private static void waitForGatewayHealth() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
         HttpRequest req = HttpRequest.newBuilder()
@@ -174,7 +175,9 @@ class SystemE2ETest {
             try {
                 HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
                 if (resp.statusCode() == 200) return;
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+                // gateway not reachable yet, retry on next poll iteration
+            }
             Thread.sleep(10_000);
         }
         throw new RuntimeException("API Gateway did not become healthy within 15 minutes");

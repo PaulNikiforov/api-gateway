@@ -17,6 +17,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDate;
+import java.time.Month;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -36,7 +37,7 @@ class GlobalExceptionHandlerTest {
         webTestClient.post()
                 .uri("/api/v1/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new RegisterRequest("", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123"))
+                .bodyValue(new RegisterRequest("", "Smith", LocalDate.of(1995, Month.JANUARY, 1), "alice@example.com", "password123"))
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody(ErrorResponse.class)
@@ -59,7 +60,7 @@ class GlobalExceptionHandlerTest {
         webTestClient.post()
                 .uri("/api/v1/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new RegisterRequest("Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123"))
+                .bodyValue(new RegisterRequest("Alice", "Smith", LocalDate.of(1995, Month.JANUARY, 1), "alice@example.com", "password123"))
                 .exchange()
                 .expectStatus().isEqualTo(409);
     }
@@ -72,7 +73,7 @@ class GlobalExceptionHandlerTest {
         webTestClient.post()
                 .uri("/api/v1/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(new RegisterRequest("Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123"))
+                .bodyValue(new RegisterRequest("Alice", "Smith", LocalDate.of(1995, Month.JANUARY, 1), "alice@example.com", "password123"))
                 .exchange()
                 .expectStatus().isEqualTo(500)
                 .expectBody(ErrorResponse.class)

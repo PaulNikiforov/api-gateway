@@ -21,6 +21,7 @@ import reactor.netty.http.client.HttpClient;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDate;
+import java.time.Month;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -67,7 +68,7 @@ class RegistrationContractConsumerTest {
     @Test
     void register_withValidRequest_receivesTokensFromStubs() {
         RegisterRequest request = new RegisterRequest(
-                "Contract", "User", LocalDate.of(1990, 1, 1), "contract@gateway.com", "ContractPass1!");
+                "Contract", "User", LocalDate.of(1990, Month.JANUARY, 1), "contract@gateway.com", "ContractPass1!");
 
         StepVerifier.create(registrationService.register(request))
                 .assertNext(response -> {

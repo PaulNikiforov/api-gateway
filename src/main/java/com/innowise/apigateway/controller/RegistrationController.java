@@ -8,7 +8,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,23 +34,21 @@ public class RegistrationController {
             operationId = "register",
             security = {}
     )
-    @ApiResponses({
-            @ApiResponse(responseCode = "201",
-                    description = "User registered successfully",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = RegisterResponse.class))),
-            @ApiResponse(responseCode = "400",
-                    description = "Validation error (missing fields, password too short)",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "409", description = "Email already registered",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "500",
-                    description = "Unexpected error or compensation failure",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
+    @ApiResponse(responseCode = "201",
+            description = "User registered successfully",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = RegisterResponse.class)))
+    @ApiResponse(responseCode = "400",
+            description = "Validation error (missing fields, password too short)",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Email already registered",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "500",
+            description = "Unexpected error or compensation failure",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = ErrorResponse.class)))
     @PostMapping("/api/v1/register")
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {

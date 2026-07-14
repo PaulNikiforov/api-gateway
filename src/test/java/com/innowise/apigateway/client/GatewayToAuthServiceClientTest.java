@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDate;
+import java.time.Month;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,7 +29,7 @@ class GatewayToAuthServiceClientTest extends AbstractDownstreamClientTest {
                 .setBody("{\"accessToken\":\"at\",\"refreshToken\":\"rt\"}"));
 
         RegisterRequest request = new RegisterRequest(
-                "Alice", "Smith", LocalDate.of(1995, 6, 15), "alice@example.com", "password123");
+                "Alice", "Smith", LocalDate.of(1995, Month.JUNE, 15), "alice@example.com", "password123");
 
         StepVerifier.create(registrationService.register(request))
                 .expectNextCount(1)

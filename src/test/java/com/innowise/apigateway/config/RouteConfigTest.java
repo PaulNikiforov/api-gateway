@@ -12,8 +12,6 @@ import org.springframework.test.context.TestPropertySource;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
@@ -38,10 +36,10 @@ class RouteConfigTest {
         )
                 .assertNext(routes -> {
                     assertThat(routes).containsKeys("auth-service", "user-service", "order-service", "payment-service");
-                    assertThat(routes.get("auth-service")).isEqualTo("http://localhost:9999");
-                    assertThat(routes.get("user-service")).isEqualTo("http://localhost:9998");
-                    assertThat(routes.get("order-service")).isEqualTo("http://localhost:9997");
-                    assertThat(routes.get("payment-service")).isEqualTo("http://localhost:9996");
+                    assertThat(routes).containsEntry("auth-service", "http://localhost:9999");
+                    assertThat(routes).containsEntry("user-service", "http://localhost:9998");
+                    assertThat(routes).containsEntry("order-service", "http://localhost:9997");
+                    assertThat(routes).containsEntry("payment-service", "http://localhost:9996");
                 })
                 .verifyComplete();
     }
@@ -100,7 +98,7 @@ class RouteConfigTest {
                         .next()
         )
                 .assertNext(route -> {
-                    assertThat(route.getUri().toString()).isEqualTo("http://localhost:9998");
+                    assertThat(route.getUri()).hasToString("http://localhost:9998");
                     assertThat(matches(route, "/api/v1/cards/42")).isTrue();
                     assertThat(matches(route, "/api/v1/users/1")).isFalse();
                     assertThat(matches(route, "/api/v1/register")).isFalse();

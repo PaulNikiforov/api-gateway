@@ -51,8 +51,8 @@ public class GlobalExceptionHandler {
         HttpStatusCode gatewayStatus = rawStatus.is5xxServerError() ? HttpStatus.BAD_GATEWAY : rawStatus;
         HttpStatus resolved = HttpStatus.resolve(gatewayStatus.value());
         String error = resolved != null ? resolved.getReasonPhrase() : ex.getStatusText();
-        String message = rawStatus.is5xxServerError() ? "Upstream service error"
-                : (resolved != null ? resolved.getReasonPhrase() : "Client error");
+        String clientErrorMessage = resolved != null ? resolved.getReasonPhrase() : "Client error";
+        String message = rawStatus.is5xxServerError() ? "Upstream service error" : clientErrorMessage;
         String path = exchange.getRequest().getPath().value();
         ErrorResponse body = new ErrorResponse(
                 Instant.now(),

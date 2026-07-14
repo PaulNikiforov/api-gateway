@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDate;
+import java.time.Month;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,7 +29,7 @@ class GatewayToUserServiceClientTest extends AbstractDownstreamClientTest {
                 .setBody("{\"accessToken\":\"at\",\"refreshToken\":\"rt\"}"));
 
         RegisterRequest request = new RegisterRequest(
-                "Alice", "Smith", LocalDate.of(1995, 6, 15), "alice@example.com", "password123");
+                "Alice", "Smith", LocalDate.of(1995, Month.JUNE, 15), "alice@example.com", "password123");
 
         StepVerifier.create(registrationService.register(request))
                 .expectNextCount(1)
@@ -56,7 +57,7 @@ class GatewayToUserServiceClientTest extends AbstractDownstreamClientTest {
         userServiceServer.enqueue(new MockResponse().setResponseCode(204));
 
         RegisterRequest request = new RegisterRequest(
-                "Carol", "White", LocalDate.of(1992, 3, 10), "carol@example.com", "pass");
+                "Carol", "White", LocalDate.of(1992, Month.MARCH, 10), "carol@example.com", "pass");
 
         StepVerifier.create(registrationService.register(request))
                 .expectError()
@@ -85,7 +86,7 @@ class GatewayToUserServiceClientTest extends AbstractDownstreamClientTest {
                 .setBody("{\"accessToken\":\"at\",\"refreshToken\":\"rt\"}"));
 
         RegisterRequest request = new RegisterRequest(
-                "Bob", "Jones", LocalDate.of(1990, 1, 1), "bob@example.com", "supersecret99");
+                "Bob", "Jones", LocalDate.of(1990, Month.JANUARY, 1), "bob@example.com", "supersecret99");
 
         StepVerifier.create(registrationService.register(request))
                 .expectNextCount(1)

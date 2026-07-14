@@ -11,6 +11,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.test.StepVerifier;
 
 import java.time.LocalDate;
+import java.time.Month;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,7 +30,7 @@ class RegistrationServiceTest extends AbstractDownstreamClientTest {
                 .setBody("{\"accessToken\":\"at\",\"refreshToken\":\"rt\"}"));
 
         RegisterRequest request = new RegisterRequest(
-                "Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123");
+                "Alice", "Smith", LocalDate.of(1995, Month.JANUARY, 1), "alice@example.com", "password123");
 
         StepVerifier.create(registrationService.register(request))
                 .expectNextMatches(response ->
@@ -53,7 +54,7 @@ class RegistrationServiceTest extends AbstractDownstreamClientTest {
         userServiceServer.enqueue(new MockResponse().setResponseCode(204));
 
         RegisterRequest request = new RegisterRequest(
-                "Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123");
+                "Alice", "Smith", LocalDate.of(1995, Month.JANUARY, 1), "alice@example.com", "password123");
 
         StepVerifier.create(registrationService.register(request))
                 .expectError(WebClientResponseException.class)
@@ -88,7 +89,7 @@ class RegistrationServiceTest extends AbstractDownstreamClientTest {
                 .setResponseCode(409));
 
         RegisterRequest request = new RegisterRequest(
-                "Alice", "Smith", LocalDate.of(1995, 1, 1), "alice@example.com", "password123");
+                "Alice", "Smith", LocalDate.of(1995, Month.JANUARY, 1), "alice@example.com", "password123");
 
         StepVerifier.create(registrationService.register(request))
                 .expectError(WebClientResponseException.Conflict.class)
