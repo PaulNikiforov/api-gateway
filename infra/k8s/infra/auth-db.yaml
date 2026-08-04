@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: auth-db-pvc
+  namespace: platform
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-db
+  namespace: platform
+  labels:
+    app: auth-db
+spec:
+  replicas: 1
+  # Recreate, not the default RollingUpdate: PVC is ReadWriteOnce and postgres locks its data
+  # directory (postmaster.pid) exclusively — a surge pod starting before the old one is fully
+  # gone would crash fighting over that lock instead of ever becoming ready.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: auth-db
+  template:
+    metadata:
+      labels:
+        app: auth-db
+    spec:
+      containers:
+        - name: auth-db
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef: { name: platform-config, key: AUTH_DB_NAME }
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef: { name: platform-config, key: AUTH_DB_USER }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: platform-secrets, key: AUTH_DB_PASSWORD }
+            # avoids "initdb: directory not empty" when the PV root contains lost+found
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests: { memory: "128Mi", cpu: "100m" }
+            limits: { memory: "256Mi", cpu: "300m" }
+          startupProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: auth-db-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-db
+  namespace: platform
+spec:
+  type: NodePort
+  selector:
+    app: auth-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+      nodePort: 30432

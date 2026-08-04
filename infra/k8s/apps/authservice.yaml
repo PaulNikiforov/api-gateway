@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authservice
+  namespace: platform
+  labels:
+    app: authservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authservice
+  template:
+    metadata:
+      labels:
+        app: authservice
+    spec:
+      containers:
+        - name: authservice
+          image: authservice:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - configMapRef: { name: platform-config }
+            - secretRef: { name: platform-secrets }
+          env:
+            - name: DB_URL
+              value: "jdbc:postgresql://auth-db:5432/authdb"
+            - name: DB_USERNAME
+              valueFrom:
+                configMapKeyRef: { name: platform-config, key: AUTH_DB_USER }
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: platform-secrets, key: AUTH_DB_PASSWORD }
+            - name: JWT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef: { name: platform-jwt-keys, key: JWT_PRIVATE_KEY }
+            - name: JWT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef: { name: platform-jwt-keys, key: JWT_PUBLIC_KEY }
+          resources:
+            requests: { memory: "256Mi", cpu: "250m" }
+            limits: { memory: "512Mi", cpu: "500m" }
+          startupProbe:
+            httpGet: { path: /actuator/health, port: 8081 }
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: 8081 }
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: 8081 }
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authservice
+  namespace: platform
+spec:
+  type: ClusterIP
+  selector:
+    app: authservice
+  ports:
+    - port: 8081
+      targetPort: 8081
