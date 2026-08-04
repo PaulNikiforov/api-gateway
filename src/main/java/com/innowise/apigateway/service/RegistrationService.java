@@ -51,6 +51,7 @@ public class RegistrationService {
                 .flatMap(userCreated ->
                         authServiceWebClient.post()
                                 .uri("/api/v1/auth/credentials")
+                                .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
                                 .bodyValue(new SaveCredentialsRequest(userCreated.userId(), request.email(), request.password()))
                                 .retrieve()
                                 .bodyToMono(CredentialsResponse.class)

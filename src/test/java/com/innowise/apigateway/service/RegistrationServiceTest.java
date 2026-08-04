@@ -129,4 +129,64 @@ class RegistrationServiceTest extends AbstractDownstreamClientTest {
         assertThat(createRequest.getMethod()).isEqualTo("POST");
         assertThat(createRequest.getPath()).isEqualTo("/api/v1/users");
     }
+
+    @Test
+    void register_whenBothServicesSucceed_shouldSendSameIdempotencyKeyToBothDownstreamCalls() throws InterruptedException {
+        userServiceServer.enqueue(new MockResponse()
+                .setResponseCode(201)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":42}"));
+
+        authServiceServer.enqueue(new MockResponse()
+                .setResponseCode(201)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"accessToken\":\"at\",\"refreshToken\":\"rt\"}"));
+
+        RegisterRequest request = new RegisterRequest(
+                "Alice", "Smith", LocalDate.of(1995, Month.JANUARY, 1), "alice@example.com", "password123");
+
+        StepVerifier.create(registrationService.register(request))
+                .expectNextMatches(response -> response.userId() == 42L)
+                .verifyComplete();
+
+        RecordedRequest userRequest = takeNext(userServiceServer);
+        RecordedRequest authRequest = takeNext(authServiceServer);
+
+        var headerName = "Idempotency-Key";
+        String userKey = userRequest.getHeader(headerName);
+        assertThat(userKey).isNotBlank();
+        assertThat(authRequest.getHeader(headerName)).isEqualTo(userKey);
+    }
+
+    @Test
+    void register_whenAuthServiceCallIsRetried_shouldSendSameIdempotencyKeyOnEveryAuthAttempt() throws InterruptedException {
+        userServiceServer.enqueue(new MockResponse()
+                .setResponseCode(201)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":42}"));
+
+        authServiceServer.enqueue(new MockResponse().setResponseCode(500));
+        authServiceServer.enqueue(new MockResponse()
+                .setResponseCode(201)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"accessToken\":\"at\",\"refreshToken\":\"rt\"}"));
+
+        RegisterRequest request = new RegisterRequest(
+                "Alice", "Smith", LocalDate.of(1995, Month.JANUARY, 1), "alice@example.com", "password123");
+
+        StepVerifier.create(registrationService.register(request))
+                .expectNextMatches(response -> response.userId() == 42L)
+                .verifyComplete();
+
+        RecordedRequest userRequest = takeNext(userServiceServer);
+
+        var headerName = "Idempotency-Key";
+        String userKey = userRequest.getHeader(headerName);
+        assertThat(userKey).isNotBlank();
+
+        RecordedRequest firstAuthAttempt = takeNext(authServiceServer);
+        RecordedRequest retriedAuthAttempt = takeNext(authServiceServer);
+        assertThat(firstAuthAttempt.getHeader(headerName)).isEqualTo(userKey);
+        assertThat(retriedAuthAttempt.getHeader(headerName)).isEqualTo(userKey);
+    }
 }
