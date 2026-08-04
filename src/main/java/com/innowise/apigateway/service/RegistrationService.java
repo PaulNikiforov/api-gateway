@@ -15,9 +15,13 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
+import java.util.UUID;
+
 @Slf4j
 @Service
 public class RegistrationService {
+
+    private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
     private static final Retry DOWNSTREAM_RETRY = Retry
             .backoff(GatewayConstants.DOWNSTREAM_RETRIES, GatewayConstants.RETRY_MIN_BACKOFF)
@@ -35,8 +39,10 @@ public class RegistrationService {
     }
 
     public Mono<RegisterResponse> register(RegisterRequest request) {
+        var idempotencyKey = UUID.randomUUID().toString();
         return userServiceWebClient.post()
                 .uri("/api/v1/users")
+                .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey)
                 .bodyValue(new CreateUserRequest(request.name(), request.surname(), request.birthDate(), request.email()))
                 .retrieve()
                 .bodyToMono(UserCreatedResponse.class)

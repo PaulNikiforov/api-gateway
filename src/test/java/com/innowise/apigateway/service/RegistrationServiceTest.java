@@ -79,6 +79,35 @@ class RegistrationServiceTest extends AbstractDownstreamClientTest {
     }
 
     @Test
+    void register_whenUserServiceCallIsRetried_shouldSendSameIdempotencyKeyOnEveryAttempt() throws InterruptedException {
+        userServiceServer.enqueue(new MockResponse().setResponseCode(500));
+        userServiceServer.enqueue(new MockResponse()
+                .setResponseCode(201)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":42}"));
+
+        authServiceServer.enqueue(new MockResponse()
+                .setResponseCode(201)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"accessToken\":\"at\",\"refreshToken\":\"rt\"}"));
+
+        RegisterRequest request = new RegisterRequest(
+                "Alice", "Smith", LocalDate.of(1995, Month.JANUARY, 1), "alice@example.com", "password123");
+
+        StepVerifier.create(registrationService.register(request))
+                .expectNextMatches(response -> response.userId() == 42L)
+                .verifyComplete();
+
+        RecordedRequest firstAttempt = takeNext(userServiceServer);
+        RecordedRequest retriedAttempt = takeNext(userServiceServer);
+
+        var headerName = "Idempotency-Key";
+        String firstKey = firstAttempt.getHeader(headerName);
+        assertThat(firstKey).isNotBlank();
+        assertThat(retriedAttempt.getHeader(headerName)).isEqualTo(firstKey);
+    }
+
+    @Test
     void register_whenAuthReturns409_shouldPropagateConflictWithoutCompensation() throws InterruptedException {
         userServiceServer.enqueue(new MockResponse()
                 .setResponseCode(201)
